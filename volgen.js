@@ -9,7 +9,8 @@ import { windroosSvg, kompasSvg, windZijde } from './instrumenten.js?v=af7fe36b'
 import {
   haalHistorie, haalNu, haalRoutes, haalSpoor, haalFotos, trackVan, trackStukken,
   monsterOp, reeksVan, reeksStukken, leeftijdTekst, plaatsVanFoto, spreid,
-} from './historie.js?v=446923d6';
+  actieveRoute, afstandTotBestemming, routeLengteNm, koersNaar, vmgKn, aankomst,
+} from './historie.js?v=f47b39d7';
 
 const $ = (id) => document.getElementById(id);
 const KLEUR = { wind: '#67d6c4', richting: '#d9c9a3', sog: '#ffb547', stw: '#58a8ff',
@@ -135,6 +136,73 @@ function fixIcoon() {
  * Honderden merktekens worden een grijze massa, dus we spreiden ze over de
  * reis. Alles blijft wel in de galerij staan.
  */
+/**
+ * Het routevak: waar gaan we heen, en hoe hard schiet het op.
+ *
+ * Alles hangt aan de positie van het gekozen moment, dus dit beweegt mee met de
+ * tijdschuif. Zonder route blijft het vak weg — een leeg kader met streepjes
+ * zegt niets.
+ *
+ * VMG rekent naar het vólgende waypoint en niet naar de eindbestemming: dat is
+ * de richting waarin de afstand nu daadwerkelijk krimpt. Kruis je op, dan staat
+ * er dus veel minder dan je log aangeeft, en dat hoort zo.
+ */
+function tekenRoutevak() {
+  const vak = $('routevak');
+  if (!vak) return;
+
+  const route = actieveRoute(routes);
+  const m = huidigMonster();
+  const positie = m && m.lat !== null && m.lon !== null
+    ? { lat: m.lat, lon: m.lon } : null;
+  const dtd = route ? afstandTotBestemming(route.punten, positie) : null;
+
+  vak.hidden = !route;
+  if (!route) return;
+
+  const tekst = (id, s) => { const e = $(id); if (e) e.textContent = s; };
+  const html = (id, s) => { const e = $(id); if (e) e.innerHTML = s; };
+
+  tekst('routeNaam', route.naam || 'route');
+
+  const lengte = routeLengteNm(route.punten);
+  html('rLengte', lengte === null ? '—' : `${lengte.toFixed(1)}<small>NM</small>`);
+
+  if (!dtd) {
+    // Wel een route, geen positie: dan de route wel tonen, de rest eerlijk leeg.
+    ['rDtd', 'rVmg', 'rEta', 'rPeiling'].forEach((id) => html(id, '—'));
+    ['rDtdBij', 'rEtaBij', 'rPeilingBij', 'rAf'].forEach((id) => tekst(id, 'geen positie'));
+    tekst('routeBeen', '');
+    $('routeVoortgang').style.width = '0%';
+    return;
+  }
+
+  html('rDtd', `${dtd.nm.toFixed(1)}<small>NM</small>`);
+  tekst('routeBeen', `been ${dtd.been + 1} van ${dtd.benen}`);
+  tekst('rDtdBij', dtd.afwijking > 0.5
+    ? `${dtd.afwijking.toFixed(1)} NM naast de lijn`
+    : 'op de lijn');
+
+  const af = lengte === null ? null : Math.max(0, lengte - dtd.nm);
+  tekst('rAf', af === null ? '—' : `${af.toFixed(1)} NM afgelegd`);
+  $('routeVoortgang').style.width =
+    (lengte ? Math.max(0, Math.min(100, (af / lengte) * 100)) : 0) + '%';
+
+  const peiling = koersNaar(positie, dtd.volgende);
+  html('rPeiling', peiling === null ? '—' : `${Math.round(peiling)}<small>°</small>`);
+  tekst('rPeilingBij', m && m.cog !== null
+    ? `over de grond ${Math.round(m.cog)}°` : 'naar volgend punt');
+
+  const v = vmgKn(m && m.sog, m && m.cog, peiling);
+  html('rVmg', v === null ? '—' : `${v.toFixed(1)}<small>kn</small>`);
+  tekst('rVmgBij', v === null ? 'geen vaart'
+    : v < 0 ? 'van het punt af' : 'naar volgend punt');
+
+  const eta = aankomst(dtd.nm, v, gekozenT === null ? Date.now() : gekozenT);
+  html('rEta', eta ? datumKlok(eta.getTime()).replace(/^\w+ /, '') : '—');
+  tekst('rEtaBij', eta ? 'bij deze VMG' : 'geen schatting');
+}
+
 function toonBeeld(f) {
   const venster = $('beeldvenster');
   if (!venster) return;
@@ -436,6 +504,7 @@ function tekenAlles() {
   tekenSchuif();
   tekenKaart();
   tekenAflezingen();
+  tekenRoutevak();
   tekenGrafieken();
 }
 

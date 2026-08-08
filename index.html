@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<link rel="stylesheet" href="volgen.css?v=8143c17f" />
+<link rel="stylesheet" href="volgen.css?v=dede45bd" />
 </head>
 <body>
 
@@ -70,6 +70,43 @@
     <section class="camera" id="camera" hidden aria-label="Laatste camerabeeld">
       <img id="cameraBeeld" alt="Laatste beeld van de camera aan boord" />
       <div class="camera-bij" id="cameraBij"></div>
+    </section>
+
+    <!-- Alleen zichtbaar als er een route geüpload is; anders zegt dit niets. -->
+    <section class="routevak" id="routevak" hidden aria-label="Onderweg naar">
+      <div class="routekop">
+        <span class="t">Onderweg naar</span>
+        <span class="routenaam" id="routeNaam">—</span>
+        <span class="routebeen" id="routeBeen"></span>
+      </div>
+      <div class="routecellen">
+        <div class="rc groot">
+          <div class="k">Nog te gaan</div>
+          <div class="w" id="rDtd">—<small>NM</small></div>
+          <div class="bij" id="rDtdBij">—</div>
+        </div>
+        <div class="rc">
+          <div class="k">VMG</div>
+          <div class="w" id="rVmg">—<small>kn</small></div>
+          <div class="bij" id="rVmgBij">naar volgend punt</div>
+        </div>
+        <div class="rc">
+          <div class="k">Aankomst</div>
+          <div class="w" id="rEta">—</div>
+          <div class="bij" id="rEtaBij">—</div>
+        </div>
+        <div class="rc">
+          <div class="k">Peiling</div>
+          <div class="w" id="rPeiling">—<small>°</small></div>
+          <div class="bij" id="rPeilingBij">—</div>
+        </div>
+        <div class="rc">
+          <div class="k">Routelengte</div>
+          <div class="w" id="rLengte">—<small>NM</small></div>
+          <div class="bij" id="rAf">—</div>
+        </div>
+      </div>
+      <div class="routebalk"><span id="routeVoortgang"></span></div>
     </section>
 
     <section class="aflezingen" aria-label="Aflezingen op het gekozen moment">
@@ -179,6 +216,6 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="config.js"></script>
-<script type="module" src="volgen.js?v=7d1d833f"></script>
+<script type="module" src="volgen.js?v=7eeb0d2d"></script>
 </body>
 </html>

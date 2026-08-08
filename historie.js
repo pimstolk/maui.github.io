@@ -322,6 +322,136 @@ export function spreid(lijst, maximum) {
   return uit;
 }
 
+/**
+ * De route die nu telt: de laatst geüploade geplande route.
+ *
+ * routes.json staat op tijd, nieuwste eerst, dus dat is de eerste `route` in de
+ * lijst. Sporen (`spoor`) en losse waypoints doen niet mee — een DTD hoort bij
+ * een plan, niet bij iets dat al gevaren is.
+ */
+export function actieveRoute(routes) {
+  return (routes || []).find((r) => r.soort === 'route' && r.punten
+                                    && r.punten.length >= 2) || null;
+}
+
+/**
+ * Waar op een lijnstuk ligt het punt het dichtst bij p, en hoe ver is dat?
+ *
+ * Op een plat vlak gerekend, met de lengtegraad geschaald naar de breedte. Over
+ * een lijnstuk van een paar mijl is de fout daarvan verwaarloosbaar, en het
+ * scheelt een boel bolmeetkunde.
+ */
+function opLijnstuk(p, a, b) {
+  const k = Math.cos((a.lat + b.lat) / 2 * Math.PI / 180);
+  const ax = a.lon * k, ay = a.lat, bx = b.lon * k, by = b.lat;
+  const px = p.lon * k, py = p.lat;
+  const dx = bx - ax, dy = by - ay;
+  const lengte2 = dx * dx + dy * dy;
+  // Een lijnstuk van niets: dan is het gewoon het beginpunt.
+  const t = lengte2 === 0 ? 0
+    : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengte2));
+  const voet = { lat: ay + t * dy, lon: (ax + t * dx) / k };
+  return { voet, t, afstand: haversineNm(p, voet) };
+}
+
+/**
+ * Afstand tot bestemming: langs de route, niet in vogelvlucht.
+ *
+ * Eerst zoeken we op welk lijnstuk we zitten — het dichtstbijzijnde — en dan
+ * tellen we vanaf dat punt de rest van de route op. Zo klopt het getal ook als
+ * je halverwege een lang been zit, en loopt het niet ineens omhoog omdat het
+ * volgende waypoint nog voor je ligt.
+ *
+ * Geeft null als er geen route of geen positie is. Een verzonnen DTD is erger
+ * dan geen DTD: hierop wordt gepland.
+ */
+export function afstandTotBestemming(routePunten, positie) {
+  if (!Array.isArray(routePunten) || routePunten.length < 2) return null;
+  if (!positie || !Number.isFinite(positie.lat) || !Number.isFinite(positie.lon)) return null;
+
+  const p = routePunten.map(([lat, lon]) => ({ lat, lon }));
+  if (p.some((q) => !Number.isFinite(q.lat) || !Number.isFinite(q.lon))) return null;
+
+  // Rest van de route per waypoint, van achter naar voren opgeteld.
+  const restVanaf = new Array(p.length).fill(0);
+  for (let i = p.length - 2; i >= 0; i--) {
+    restVanaf[i] = restVanaf[i + 1] + haversineNm(p[i], p[i + 1]);
+  }
+
+  let best = null;
+  for (let i = 0; i < p.length - 1; i++) {
+    const s = opLijnstuk(positie, p[i], p[i + 1]);
+    const totaal = s.afstand === null ? null
+      : haversineNm(positie, s.voet) + haversineNm(s.voet, p[i + 1]) + restVanaf[i + 1];
+    if (best === null || s.afstand < best.afwijking) {
+      best = { afwijking: s.afstand, nm: totaal, been: i };
+    }
+  }
+  if (!best || !Number.isFinite(best.nm)) return null;
+  return { nm: best.nm, afwijking: best.afwijking, been: best.been,
+           benen: p.length - 1,
+           // Het volgende waypoint: daar rekent VMG naartoe, want dat is de
+           // richting waarin de DTD nu daadwerkelijk krimpt.
+           volgende: p[best.been + 1],
+           bestemming: p[p.length - 1] };
+}
+
+/** De hele route van begin tot eind, in zeemijl. */
+export function routeLengteNm(routePunten) {
+  if (!Array.isArray(routePunten) || routePunten.length < 2) return null;
+  const p = routePunten.map(([lat, lon]) => ({ lat, lon }));
+  if (p.some((q) => !Number.isFinite(q.lat) || !Number.isFinite(q.lon))) return null;
+  let som = 0;
+  for (let i = 1; i < p.length; i++) som += haversineNm(p[i - 1], p[i]);
+  return som;
+}
+
+/** Ware koers van a naar b, in graden 0..<360 (0 = noord). */
+export function koersNaar(a, b) {
+  if (!a || !b) return null;
+  for (const q of [a, b]) {
+    if (!Number.isFinite(q.lat) || !Number.isFinite(q.lon)) return null;
+  }
+  const rad = Math.PI / 180;
+  const f1 = a.lat * rad, f2 = b.lat * rad, dl = (b.lon - a.lon) * rad;
+  const y = Math.sin(dl) * Math.cos(f2);
+  const x = Math.cos(f1) * Math.sin(f2) - Math.sin(f1) * Math.cos(f2) * Math.cos(dl);
+  return (Math.atan2(y, x) / rad + 360) % 360;
+}
+
+/**
+ * VMG: hoe snel je werkelijk naar het volgende waypoint toe gaat.
+ *
+ * De vaart over de grond ontbonden langs de peiling erheen. Kruis je op, dan is
+ * dit veel minder dan je log aangeeft — en juist dát is het getal waarmee je
+ * rekent. Vaar je ervan af, dan is hij negatief; dat verzwijgen we niet.
+ */
+export function vmgKn(sogKn, cogDeg, peilingDeg) {
+  if (![sogKn, cogDeg, peilingDeg].every(Number.isFinite)) return null;
+  const verschil = (((cogDeg - peilingDeg) % 360) + 360) % 360;
+  return sogKn * Math.cos(verschil * Math.PI / 180);
+}
+
+/** Aankomsttijd bij deze VMG, of null als je er niet naartoe gaat. */
+export function aankomst(nm, vmg, nu = Date.now()) {
+  if (!Number.isFinite(nm) || !Number.isFinite(vmg) || vmg < 0.5) return null;
+  return new Date(nu + (nm / vmg) * 3600 * 1000);
+}
+
+/** Tijd tot bestemming bij deze vaart, in uren. Null bij stilliggen. */
+export function tijdTotBestemming(nm, sogKn) {
+  if (!Number.isFinite(nm) || !Number.isFinite(sogKn) || sogKn < 0.5) return null;
+  return nm / sogKn;
+}
+
+/** "6 u 20" of "35 min" — kort genoeg voor een klein vakje. */
+export function duurTekst(uren) {
+  if (uren === null || uren === undefined || !Number.isFinite(uren)) return '—';
+  const totaal = Math.round(uren * 60);
+  if (totaal < 60) return `${totaal} min`;
+  return `${Math.floor(totaal / 60)} u ${String(totaal % 60).padStart(2, '0')}`;
+}
+
 /** Een route is bruikbaar als er echt punten in zitten die je kunt tekenen. */
 function bruikbaar(r) {
   return r && Array.isArray(r.punten) && r.punten.length > 0

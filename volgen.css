@@ -323,3 +323,58 @@ input[type=range].schuif:focus-visible { outline: 2px solid var(--overprint); ou
 }
 
 
+
+/* ---------- onderweg naar: DTD, VMG, aankomst ---------------------------- */
+/* Alleen zichtbaar met een route. Het staat vlak onder de tijdschuif en boven
+   de gewone aflezingen: eerst waar we heen gaan, dan hoe het er nu voor staat. */
+.routevak {
+  background: var(--zee); border: 1px solid var(--lijn);
+  border-radius: 14px; padding: 16px 18px 14px; margin-top: 14px;
+}
+.routevak[hidden] { display: none; }
+.routekop {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.routekop .t {
+  font-family: var(--data); font-size: 11px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--inkt-vaag);
+}
+.routenaam {
+  font-family: var(--display); font-size: 16px; font-weight: 600;
+  color: var(--inkt);
+}
+.routebeen {
+  margin-left: auto; font-family: var(--data); font-size: 11px;
+  color: var(--inkt-vaag);
+}
+.routecellen {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+}
+.rc .k {
+  font-family: var(--data); font-size: 10px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--inkt-vaag); margin-bottom: 3px;
+}
+.rc .w {
+  font-family: var(--data); font-size: 26px; color: var(--inkt);
+  font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+.rc .w small { font-size: 12px; color: var(--inkt-zwak); margin-left: 2px; }
+.rc .bij { font-size: 11px; color: var(--inkt-zwak); margin-top: 2px; }
+/* Nog te gaan is waar het om draait, dus die krijgt het magenta van "nu". */
+.rc.groot .w { font-size: 34px; color: var(--overprint); }
+
+.routebalk {
+  height: 3px; margin-top: 14px; border-radius: 2px;
+  background: var(--lijn); overflow: hidden;
+}
+.routebalk span {
+  display: block; height: 100%; width: 0;
+  background: var(--ondiep); transition: width .3s;
+}
+
+@media (max-width: 520px) {
+  .rc.groot .w { font-size: 30px; }
+  .rc .w { font-size: 22px; }
+}
