@@ -135,58 +135,6 @@ function fixIcoon() {
  * Honderden merktekens worden een grijze massa, dus we spreiden ze over de
  * reis. Alles blijft wel in de galerij staan.
  */
-/**
- * De galerij: alles wat de camera ooit maakte, per dag.
- *
- * Nieuwste dag bovenaan, want daar begint iedereen. Beelden lazy geladen —
- * honderden JPEGs tegelijk ophalen zou de pagina op een telefoon onderuit
- * halen, en je ziet er toch maar een paar tegelijk.
- */
-function tekenGalerij() {
-  const vak = $('galerij'), dagen = $('galerijDagen'), tel = $('galerijTel');
-  if (!vak || !dagen) return;
-  vak.hidden = fotos.length === 0;
-  if (!fotos.length) return;
-
-  tel.textContent = `${fotos.length} beeld${fotos.length === 1 ? '' : 'en'}`;
-  const perDag = new Map();
-  fotos.forEach((f) => {
-    if (!perDag.has(f.dag)) perDag.set(f.dag, []);
-    perDag.get(f.dag).push(f);
-  });
-
-  dagen.innerHTML = '';
-  [...perDag.keys()].sort().reverse().forEach((dag) => {
-    const blok = document.createElement('div');
-    blok.className = 'galerij-dag';
-
-    const kop = document.createElement('div');
-    kop.className = 'galerij-datum';
-    kop.textContent = new Date(dag + 'T12:00:00').toLocaleDateString('nl-NL',
-      { weekday: 'long', day: 'numeric', month: 'long' });
-    blok.appendChild(kop);
-
-    const strook = document.createElement('div');
-    strook.className = 'galerij-strook';
-    perDag.get(dag).slice().reverse().forEach((f) => {
-      const knop = document.createElement('button');
-      knop.className = 'duim';
-      knop.type = 'button';
-      const img = document.createElement('img');
-      img.src = f.pad;
-      img.loading = 'lazy';
-      img.alt = '';
-      const bij = document.createElement('span');
-      bij.textContent = klok(f.t);
-      knop.append(img, bij);
-      knop.addEventListener('click', () => toonBeeld(f));
-      strook.appendChild(knop);
-    });
-    blok.appendChild(strook);
-    dagen.appendChild(blok);
-  });
-}
-
 function toonBeeld(f) {
   const venster = $('beeldvenster');
   if (!venster) return;
@@ -219,8 +167,13 @@ function tekenFotos() {
     });
     merk.bindPopup(
       `<div class="fotopop"><img src="${f.pad}" alt="" loading="lazy">`
-      + `<span>${klok(f.t)} · ${f.dag}</span></div>`,
+      + `<span>${klok(f.t)} · ${f.dag} — tik voor groot</span></div>`,
       { maxWidth: 260, className: 'fotopopup' });
+    // De galerij is er niet meer, dus dit is de enige weg naar een groot beeld.
+    merk.on('popupopen', (e) => {
+      const img = e.popup.getElement()?.querySelector('img');
+      if (img) img.addEventListener('click', () => toonBeeld(f));
+    });
     merk.addTo(laagFotos);
   });
 }
@@ -484,7 +437,6 @@ function tekenAlles() {
   tekenKaart();
   tekenAflezingen();
   tekenGrafieken();
-  tekenGalerij();
 }
 
 // ---------- opstarten -------------------------------------------------------
