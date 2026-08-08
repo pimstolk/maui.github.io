@@ -508,6 +508,32 @@ function tekenAlles() {
   tekenGrafieken();
 }
 
+/**
+ * Ververst zichzelf als er een nieuwe bouw op de site staat.
+ *
+ * index.html draagt geen inhoudshash -- die is de ingang -- en GitHub Pages zet
+ * er max-age=600 op. Een browser bleef er daardoor soms uren op hangen: op
+ * 08-08-2026 zag Pim de galerij nog staan en het routevak niet, terwijl beide
+ * al live waren. Alleen hard verversen hielp, en dat kun je familie niet vragen.
+ *
+ * Eén keer herladen per gevonden verschil, en alleen als de pagina zichtbaar is:
+ * een tabblad dat op de achtergrond staat te verversen helpt niemand.
+ */
+let herlaadtAl = false;
+
+async function kijkNaarNieuweBouw() {
+  if (herlaadtAl || !window.MAUI_BOUW || document.hidden) return;
+  try {
+    const res = await fetch(`versie.json?t=${Math.floor(Date.now() / 60000)}`);
+    if (!res.ok) return;
+    const { bouw } = await res.json();
+    if (bouw && bouw !== window.MAUI_BOUW) {
+      herlaadtAl = true;
+      location.reload();
+    }
+  } catch (e) { /* geen net? dan later weer */ }
+}
+
 // ---------- opstarten -------------------------------------------------------
 
 function bedraadBeeldvenster() {
@@ -553,6 +579,8 @@ function poortAf() {
   laad(24);
   setInterval(() => { if (gekozenT === null) laad(activeUren()); }, 60000);
   setInterval(tekenKop, 20000);
+  // Elke vijf minuten kijken of er een nieuwe bouw op de site staat.
+  setInterval(kijkNaarNieuweBouw, 5 * 60000);
 }
 
 function opstarten() {
