@@ -427,12 +427,18 @@ function markStale(stale) {
  * Alleen ophalen wanneer het scherm openstaat: het spoor is duizenden punten en
  * dat elke seconde herbouwen kost de Pi onnodig werk.
  */
-let _kaartOpen = false;
+let _land = null;          // de kustlijnen; één keer laden en vasthouden
 
 async function tekenKaartAanBoord() {
   const vlak = document.getElementById('kaartVlak');
   if (!vlak) return;
   try {
+    // De kustlijnen zijn 335 kB en veranderen nooit: één keer halen en houden.
+    if (_land === null) {
+      _land = await fetch('land.json').then(r => r.json())
+        .then(d => d.vlakken || []).catch(() => []);
+    }
+
     const [spoorD, routeD, fotoD] = await Promise.all([
       fetch('/api/spoor').then(r => r.json()).catch(() => null),
       fetch('/api/routes/punten').then(r => r.json()).catch(() => null),
@@ -473,7 +479,7 @@ async function tekenKaartAanBoord() {
 
     vlak.innerHTML = kaartSvg({
       spoor, route: route.map(([lat, lon]) => ({ lat, lon })), fotos, eigen, schepen,
-      breedte: 1180, hoogte: 560,
+      land: _land, breedte: 1180, hoogte: 560,
     });
 
     const sam = document.getElementById('kaartSamenvatting');
