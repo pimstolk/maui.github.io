@@ -1,5 +1,6 @@
 import { fmt, gaugePct, stageLabel } from './format.js?v=ce5aaf13';
 import { meldingBestanden } from './stem.js';
+import { kaartSvg } from './kaart.js';
 
 // Data source: 'local' (served by the Pi, uses /ws) or 'cloud' (GitHub Pages,
 // reads a public Adafruit IO feed). config.js sets window.RENOGY_CONFIG.
@@ -416,6 +417,71 @@ function markStale(stale) {
   const banner = document.getElementById('staleBanner');
   if (banner) banner.style.display = stale ? 'flex' : 'none';
 }
+
+/**
+ * De kaart aan boord: spoor, route, foto's, wij en de schepen om ons heen.
+ *
+ * Alles komt van de Pi zelf, niets van internet — op zee is er geen verbinding,
+ * en op satelliet zijn kaartbeelden de duurste bytes die er zijn. Zie kaart.js.
+ *
+ * Alleen ophalen wanneer het scherm openstaat: het spoor is duizenden punten en
+ * dat elke seconde herbouwen kost de Pi onnodig werk.
+ */
+let _kaartOpen = false;
+
+async function tekenKaartAanBoord() {
+  const vlak = document.getElementById('kaartVlak');
+  if (!vlak) return;
+  try {
+    const [spoorD, routeD, fotoD] = await Promise.all([
+      fetch('/api/spoor').then(r => r.json()).catch(() => null),
+      fetch('/api/routes/punten').then(r => r.json()).catch(() => null),
+      fetch('/api/fotos').then(r => r.json()).catch(() => null),
+    ]);
+
+    const spoor = ((spoorD && spoorD.spoor) || [])
+      .map(([t, lat, lon]) => ({ t: t * 1000, lat, lon }));
+
+    // De nieuwste geplande route; sporen uit een GPX doen hier niet mee.
+    const route = (((routeD && routeD.routes) || [])
+      .find(r => r.soort === 'route' && (r.punten || []).length >= 2) || {})
+      .punten || [];
+
+    const fotos = [];
+    for (const dag of ((fotoD && fotoD.dagen) || [])) {
+      for (const b of dag.beelden || []) {
+        if (Number.isFinite(b.lat) && Number.isFinite(b.lon)) {
+          fotos.push({ lat: b.lat, lon: b.lon });
+        }
+      }
+    }
+
+    const eigen = (_self && Number.isFinite(_self.lat) && Number.isFinite(_self.lon))
+      ? { lat: _self.lat, lon: _self.lon, cog: _self.cog_deg }
+      : null;
+    const schepen = (_lastAis || [])
+      .filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lon))
+      .map(s => ({ lat: s.lat, lon: s.lon }));
+
+    vlak.innerHTML = kaartSvg({
+      spoor, route: route.map(([lat, lon]) => ({ lat, lon })), fotos, eigen, schepen,
+      breedte: 1180, hoogte: 560,
+    });
+
+    const sam = document.getElementById('kaartSamenvatting');
+    if (sam) {
+      const delen = [];
+      if (spoorD && spoorD.afstand_nm) delen.push(`${spoorD.afstand_nm} NM gevaren`);
+      if (fotos.length) delen.push(`${fotos.length} beeld${fotos.length === 1 ? '' : 'en'}`);
+      if (schepen.length) delen.push(`${schepen.length} schepen`);
+      sam.textContent = delen.join(' · ');
+    }
+  } catch (e) {
+    vlak.innerHTML = '<p class="kaart-fout">Kaartgegevens niet op te halen.</p>';
+  }
+}
+
+if (typeof window !== 'undefined') window.tekenKaartAanBoord = tekenKaartAanBoord;
 
 // --- alarm runtime (uses the tested alarmReason/evaluateAlarms) ---
 
