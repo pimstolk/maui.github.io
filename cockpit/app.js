@@ -456,9 +456,17 @@ async function tekenKaartAanBoord() {
       }
     }
 
-    const eigen = (_self && Number.isFinite(_self.lat) && Number.isFinite(_self.lon))
-      ? { lat: _self.lat, lon: _self.lon, cog: _self.cog_deg }
-      : null;
+    // Geen fix? Dan de laatst bekende plek uit het spoor. Zonder GPS staat de
+    // boot nog steeds ergens, en dat is bruikbaarder dan een lege kaart. De
+    // koersstreep laten we dan weg: die zou een richting suggereren die we niet
+    // meten.
+    let eigen = null;
+    if (_self && Number.isFinite(_self.lat) && Number.isFinite(_self.lon)) {
+      eigen = { lat: _self.lat, lon: _self.lon, cog: _self.cog_deg };
+    } else if (spoor.length) {
+      const laatst = spoor[spoor.length - 1];
+      eigen = { lat: laatst.lat, lon: laatst.lon };
+    }
     const schepen = (_lastAis || [])
       .filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lon))
       .map(s => ({ lat: s.lat, lon: s.lon }));
@@ -474,6 +482,7 @@ async function tekenKaartAanBoord() {
       if (spoorD && spoorD.afstand_nm) delen.push(`${spoorD.afstand_nm} NM gevaren`);
       if (fotos.length) delen.push(`${fotos.length} beeld${fotos.length === 1 ? '' : 'en'}`);
       if (schepen.length) delen.push(`${schepen.length} schepen`);
+      if (!(_self && Number.isFinite(_self.lat))) delen.push('geen fix — laatst bekende plek');
       sam.textContent = delen.join(' · ');
     }
   } catch (e) {
