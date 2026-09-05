@@ -1,0 +1,380 @@
+/* Maui — volgdashboard voor thuis.
+ *
+ * Vormtaal: een zeekaart op de kaartentafel 's nachts. De kleuren komen uit de
+ * kaart zelf — het diepe blauw van diep water, het zandgeel van de ondiepte, en
+ * het magenta waarin op zeekaarten álle overdruk staat (lichten, routes,
+ * waarschuwingen). Dat magenta is hier gereserveerd voor één ding: het nú.
+ * Alles wat geweest is, is zandgeel. Zo vertelt de kleur je meteen wat je ziet.
+ */
+
+:root {
+  --zee-diep:   #06111d;
+  --zee:        #0a1c2c;
+  --zee-op:     #102838;
+  --ondiep:     #d9c9a3;   /* het zand van de ondiepte: alles wat geweest is  */
+  --overprint:  #e5348b;   /* kaartmagenta: het nu, de fix, de live-melding   */
+  --lijn:       rgba(217, 201, 163, .13);
+  --lijn-sterk: rgba(217, 201, 163, .28);
+  --inkt:       #e9eff6;
+  --inkt-zwak:  #7b93aa;
+  --inkt-vaag:  #4c637a;
+  --wind:       #67d6c4;
+  --sog:        #ffb547;
+  --stw:        #58a8ff;
+  --renogy:     #ffc24b;   /* dezelfde kleuren als aan boord */
+  --victron:    #35c9c9;
+
+  --display: "Archivo", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --data:    "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --rand: 14px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Het hidden-attribuut moet altijd winnen.
+ *
+ * De browserregel [hidden]{display:none} heeft specificiteit 0-0-1; elke
+ * klasseselector die zelf een display zet (0-1-0) wint daarvan. Daardoor bleef
+ * de poort na het ontgrendelen als ondoorzichtige laag over de pagina liggen —
+ * alleen de kaart prikte erdoorheen, want Leaflet zet zijn panelen op z-index
+ * 400 en de poort stond op 100. Hetzelfde gold voor .kaart-leeg. */
+[hidden] { display: none !important; }
+
+body {
+  font-family: var(--display);
+  color: var(--inkt);
+  background: var(--zee-diep);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  /* De graticule van een zeekaart: fijne breedte- en lengtelijnen, nauwelijks
+     zichtbaar, die het hele scherm tot kaartblad maken. */
+  background-image:
+    linear-gradient(var(--lijn) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lijn) 1px, transparent 1px);
+  background-size: 72px 72px;
+}
+
+.blad { max-width: 1240px; margin: 0 auto; padding: 22px 20px 56px; }
+
+/* ---------- kop: de verseheid ís de kop ------------------------------- */
+
+.kop { display: flex; align-items: flex-end; justify-content: space-between;
+       gap: 20px; flex-wrap: wrap; margin-bottom: 22px; }
+
+.naam { display: flex; align-items: baseline; gap: 14px; }
+.naam h1 {
+  font-size: clamp(30px, 6vw, 52px);
+  font-weight: 700;
+  letter-spacing: .22em;
+  font-stretch: expanded;
+  text-transform: uppercase;
+  line-height: .95;
+}
+.naam .type { font-family: var(--data); font-size: 11px; letter-spacing: .28em;
+              text-transform: uppercase; color: var(--inkt-vaag); }
+
+/* De belangrijkste zin op de pagina: hoe oud is wat je ziet. */
+.vers {
+  display: flex; align-items: center; gap: 11px;
+  font-family: var(--data); font-size: 13px; letter-spacing: .05em;
+  padding: 10px 16px; border-radius: 999px;
+  border: 1px solid var(--lijn-sterk); background: rgba(229, 52, 139, .07);
+  color: var(--inkt);
+}
+.vers .stip { width: 9px; height: 9px; border-radius: 50%;
+              background: var(--overprint); box-shadow: 0 0 14px 2px rgba(229,52,139,.7); }
+.vers.oud    { background: rgba(217,201,163,.06); }
+.vers.oud .stip { background: var(--ondiep); box-shadow: none; }
+.vers.stil   { background: rgba(255,255,255,.03); color: var(--inkt-zwak); }
+.vers.stil .stip { background: var(--inkt-vaag); box-shadow: none; }
+.vers b { font-weight: 600; }
+
+/* ---------- de kaart: de held van de pagina --------------------------- */
+
+.kaartblad {
+  position: relative; border-radius: var(--rand); overflow: hidden;
+  border: 1px solid var(--lijn-sterk); background: var(--zee);
+  box-shadow: 0 30px 70px -40px #000;
+}
+#kaart { height: clamp(320px, 52vh, 560px); width: 100%; background: var(--zee); }
+
+/* Leaflet in kaartkleuren trekken */
+.leaflet-container { background: var(--zee) !important; font-family: var(--data); }
+.leaflet-control-attribution {
+  background: rgba(6,17,29,.78) !important; color: var(--inkt-vaag) !important;
+  font-size: 10px !important;
+}
+.leaflet-control-attribution a { color: var(--inkt-zwak) !important; }
+.leaflet-control-zoom a {
+  background: var(--zee-op) !important; color: var(--inkt) !important;
+  border-color: var(--lijn-sterk) !important;
+}
+
+/* Het fix-symbool: cirkel met punt, zoals een navigator hem op papier zet. */
+.fix { position: relative; }
+.fix .ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 2px solid var(--overprint);
+}
+.fix .punt {
+  position: absolute; left: 50%; top: 50%; width: 5px; height: 5px;
+  margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--overprint);
+}
+.fix .puls {
+  position: absolute; inset: -8px; border-radius: 50%;
+  border: 1px solid var(--overprint); opacity: .5;
+  animation: uitdijen 2.8s ease-out infinite;
+}
+@keyframes uitdijen {
+  0%   { transform: scale(.55); opacity: .65; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+.kaart-leeg {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  text-align: center; padding: 24px; pointer-events: none;
+  font-family: var(--data); font-size: 13px; color: var(--inkt-zwak);
+  line-height: 1.7;
+}
+
+/* ---------- de tijdschuif als loglat --------------------------------- */
+
+.loglat { margin-top: 14px; padding: 16px 18px 12px;
+          border: 1px solid var(--lijn); border-radius: var(--rand);
+          background: var(--zee); }
+.loglat-kop { display: flex; justify-content: space-between; align-items: baseline;
+              gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.loglat-kop .t { font-family: var(--data); font-size: 10px; letter-spacing: .24em;
+                 text-transform: uppercase; color: var(--inkt-vaag); }
+.loglat-kop .moment { font-family: var(--data); font-size: 15px; color: var(--overprint); }
+.loglat-kop .moment.nu { color: var(--overprint); }
+
+input[type=range].schuif {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 34px;
+  background: transparent; cursor: pointer; display: block;
+}
+input[type=range].schuif::-webkit-slider-runnable-track {
+  height: 3px; background: var(--lijn-sterk); border-radius: 2px;
+}
+input[type=range].schuif::-moz-range-track {
+  height: 3px; background: var(--lijn-sterk); border-radius: 2px;
+}
+input[type=range].schuif::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 3px; height: 26px; margin-top: -11px;
+  background: var(--overprint); border: 0; border-radius: 1px;
+  box-shadow: 0 0 12px 2px rgba(229,52,139,.65);
+}
+input[type=range].schuif::-moz-range-thumb {
+  width: 3px; height: 26px; background: var(--overprint); border: 0; border-radius: 1px;
+}
+input[type=range].schuif:focus-visible { outline: 2px solid var(--overprint); outline-offset: 4px; }
+
+.uiteinden { display: flex; justify-content: space-between;
+             font-family: var(--data); font-size: 11px; color: var(--inkt-vaag); }
+
+.venster { display: flex; gap: 8px; }
+.venster button {
+  font-family: var(--data); font-size: 11px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--inkt-zwak); cursor: pointer;
+  background: transparent; border: 1px solid var(--lijn); border-radius: 999px;
+  padding: 7px 14px;
+}
+.venster button[aria-pressed=true] {
+  color: var(--zee-diep); background: var(--ondiep); border-color: var(--ondiep);
+}
+.venster button:focus-visible { outline: 2px solid var(--overprint); outline-offset: 2px; }
+
+/* ---------- camerabeeld ----------------------------------------------- */
+
+.camera { margin-top: 12px; border: 1px solid var(--lijn); border-radius: var(--rand);
+          background: var(--zee); overflow: hidden; }
+.camera img { display: block; width: 100%; height: auto; }
+.camera-bij { font-family: var(--data); font-size: 11px; color: var(--inkt-vaag);
+              padding: 10px 14px; }
+
+/* ---------- aflezingen ------------------------------------------------ */
+
+.aflezingen { display: grid; gap: 12px; margin-top: 20px;
+              grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); }
+.af { border: 1px solid var(--lijn); border-radius: var(--rand);
+      background: var(--zee); padding: 15px 16px 14px; }
+.af .k { font-family: var(--data); font-size: 10px; letter-spacing: .2em;
+         text-transform: uppercase; color: var(--inkt-vaag); }
+.af .w { font-family: var(--data); font-size: 27px; margin-top: 8px;
+         font-variant-numeric: tabular-nums; line-height: 1.05; }
+.af .w small { font-size: 13px; color: var(--inkt-zwak); margin-left: 3px; }
+.af .bij { font-family: var(--data); font-size: 11px; color: var(--inkt-zwak); margin-top: 5px; }
+.af.positie .w { font-size: 16px; line-height: 1.5; }
+
+/* ---------- ronde instrumenten ---------------------------------------- */
+
+.instrumenten { display: grid; gap: 12px; margin-top: 12px;
+                grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.inst { border: 1px solid var(--lijn); border-radius: var(--rand);
+        background: var(--zee); padding: 15px 16px 12px; min-width: 0; }
+.inst-kop { display: flex; justify-content: space-between; align-items: baseline;
+            gap: 12px; margin-bottom: 6px; }
+.inst-kop .t { font-family: var(--data); font-size: 10px; letter-spacing: .22em;
+               text-transform: uppercase; color: var(--inkt-vaag); }
+.inst-kop .bij { font-family: var(--data); font-size: 11px; color: var(--inkt-zwak); }
+.inst-vak { display: grid; place-items: center; }
+.inst-vak svg { width: 100%; max-width: 240px; height: auto; display: block; }
+
+/* ---------- grafieken ------------------------------------------------- */
+
+.grafieken { display: grid; gap: 12px; margin-top: 12px;
+             grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.gr { border: 1px solid var(--lijn); border-radius: var(--rand);
+      background: var(--zee); padding: 15px 16px 10px; min-width: 0; }
+.gr-kop { display: flex; justify-content: space-between; align-items: baseline;
+          margin-bottom: 10px; gap: 12px; flex-wrap: wrap; }
+.gr-kop .t { font-family: var(--data); font-size: 10px; letter-spacing: .22em;
+             text-transform: uppercase; color: var(--inkt-vaag); }
+.sleutel { display: flex; gap: 14px; font-family: var(--data); font-size: 10px;
+           letter-spacing: .1em; text-transform: uppercase; color: var(--inkt-vaag); }
+.sleutel i { display: inline-block; width: 10px; height: 3px; border-radius: 2px;
+             margin-right: 6px; vertical-align: middle; }
+.gr svg { width: 100%; height: 156px; display: block; overflow: visible; }
+.gr .leeg { font-family: var(--data); font-size: 12px; color: var(--inkt-vaag);
+            padding: 42px 0; text-align: center; }
+
+.voet { margin-top: 26px; font-family: var(--data); font-size: 11px;
+        color: var(--inkt-vaag); line-height: 1.8; }
+.voet a { color: var(--inkt-zwak); }
+
+@media (max-width: 560px) {
+  .blad { padding: 16px 14px 40px; }
+  .kop { align-items: flex-start; }
+  .naam { flex-direction: column; gap: 4px; }
+  .aflezingen { grid-template-columns: repeat(2, 1fr); }
+  .grafieken { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fix .puls { animation: none; opacity: .35; }
+}
+
+/* ---------- de poort ---------------------------------------------------- */
+
+.poort { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
+         padding: 24px; background: var(--zee-diep); }
+.poort-kaart { width: min(360px, 100%); text-align: center;
+               border: 1px solid var(--lijn-sterk); border-radius: var(--rand);
+               background: var(--zee); padding: 34px 28px 28px; }
+.poort-kop { font-size: 34px; font-weight: 700; letter-spacing: .24em;
+             text-transform: uppercase; margin-bottom: 22px; }
+.poort-vraag { display: block; font-family: var(--data); font-size: 12px;
+               letter-spacing: .14em; color: var(--inkt-zwak); margin-bottom: 14px; }
+.poort-in { width: 100%; font-family: var(--data); font-size: 17px; text-align: center;
+            color: var(--inkt); background: rgba(255,255,255,.04);
+            border: 1px solid var(--lijn-sterk); border-radius: 10px; padding: 13px 12px; }
+.poort-in:focus-visible { outline: 2px solid var(--overprint); outline-offset: 2px; }
+.poort-knop { width: 100%; margin-top: 12px; font-family: var(--data); font-size: 12px;
+              letter-spacing: .18em; text-transform: uppercase; cursor: pointer;
+              color: var(--zee-diep); background: var(--overprint);
+              border: 0; border-radius: 10px; padding: 13px 12px; }
+.poort-knop:focus-visible { outline: 2px solid var(--inkt); outline-offset: 2px; }
+.poort-fout { font-family: var(--data); font-size: 12px; color: var(--overprint);
+              margin-top: 14px; }
+
+/* ---------- één beeld groot ---------------------------------------------- */
+.beeldvenster {
+  position: fixed; inset: 0; z-index: 900;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 24px; background: rgba(6, 17, 29, .93);
+}
+.beeldvenster[hidden] { display: none; }
+.beeldvenster img {
+  max-width: min(100%, 1100px); max-height: 78vh; object-fit: contain;
+  border-radius: 10px; border: 1px solid var(--lijn-sterk);
+}
+.beeld-bij { font-family: var(--data); font-size: 13px; color: var(--inkt-zwak); }
+.beeld-sluit {
+  position: absolute; top: 16px; right: 18px; width: 44px; height: 44px;
+  border: 1px solid var(--lijn); border-radius: 10px; background: var(--zee);
+  color: var(--inkt); font-size: 17px; cursor: pointer;
+}
+
+/* ---------- foto's op de kaart ------------------------------------------- */
+/* Klein en rustig: de track en de fix blijven het onderwerp, de beelden zijn
+   een uitnodiging om te klikken. */
+.fotostip {
+  /* Klein en doorzichtig, en met opzet kleiner dan het aanraakvlak eromheen:
+     de gevaren track is het onderwerp, de beelden zijn een uitnodiging. Bij de
+     eerste opzet waren ze even zwaar als de lijn en werd de route een ketting
+     van blokjes. */
+  display: block; width: 7px; height: 7px; margin: 5.5px;
+  border-radius: 50%; background: var(--wind);
+  box-shadow: 0 0 0 1.5px var(--zee-diep);
+  opacity: .7; transition: opacity .12s, transform .12s;
+}
+.fotostip:hover { opacity: 1; transform: scale(1.5); }
+.fotopopup .leaflet-popup-content-wrapper {
+  background: var(--zee); color: var(--inkt);
+  border: 1px solid var(--lijn-sterk); border-radius: 10px;
+}
+.fotopopup .leaflet-popup-tip { background: var(--zee); }
+.fotopopup .leaflet-popup-content { margin: 8px; }
+.fotopop img { display: block; width: 100%; border-radius: 6px; }
+.fotopop span {
+  display: block; margin-top: 6px; font-family: var(--data);
+  font-size: 11px; color: var(--inkt-zwak);
+}
+
+
+
+/* ---------- onderweg naar: DTD, VMG, aankomst ---------------------------- */
+/* Alleen zichtbaar met een route. Het staat vlak onder de tijdschuif en boven
+   de gewone aflezingen: eerst waar we heen gaan, dan hoe het er nu voor staat. */
+.routevak {
+  background: var(--zee); border: 1px solid var(--lijn);
+  border-radius: 14px; padding: 16px 18px 14px; margin-top: 14px;
+}
+.routevak[hidden] { display: none; }
+.routekop {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.routekop .t {
+  font-family: var(--data); font-size: 11px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--inkt-vaag);
+}
+.routenaam {
+  font-family: var(--display); font-size: 16px; font-weight: 600;
+  color: var(--inkt);
+}
+.routebeen {
+  margin-left: auto; font-family: var(--data); font-size: 11px;
+  color: var(--inkt-vaag);
+}
+.routecellen {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+}
+.rc .k {
+  font-family: var(--data); font-size: 10px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--inkt-vaag); margin-bottom: 3px;
+}
+.rc .w {
+  font-family: var(--data); font-size: 26px; color: var(--inkt);
+  font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+.rc .w small { font-size: 12px; color: var(--inkt-zwak); margin-left: 2px; }
+.rc .bij { font-size: 11px; color: var(--inkt-zwak); margin-top: 2px; }
+/* Nog te gaan is waar het om draait, dus die krijgt het magenta van "nu". */
+.rc.groot .w { font-size: 34px; color: var(--overprint); }
+
+.routebalk {
+  height: 3px; margin-top: 14px; border-radius: 2px;
+  background: var(--lijn); overflow: hidden;
+}
+.routebalk span {
+  display: block; height: 100%; width: 0;
+  background: var(--ondiep); transition: width .3s;
+}
+
+@media (max-width: 520px) {
+  .rc.groot .w { font-size: 30px; }
+  .rc .w { font-size: 22px; }
+}

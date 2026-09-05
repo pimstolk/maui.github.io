@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Maui · Cockpit</title>
+<link rel="stylesheet" href="styles.css?v=cda6c5e9">
+</head>
+<body>
+<div id="staleBanner" style="display:flex;position:fixed;top:0;left:0;right:0;z-index:50;
+  justify-content:center;align-items:center;gap:10px;padding:6px;
+  background:rgba(255,93,99,.15);border-bottom:1px solid var(--danger);
+  color:var(--danger);letter-spacing:.16em;text-transform:uppercase;font-size:11px;">
+  ⚠ Verbinden met dashboard…
+</div>
+
+<!-- AIS collision alarm banner (hidden until a ship trips the alarm) -->
+<div id="alarmBanner" class="alarm-banner" style="display:none;">
+  <span id="alarmText" class="alarm-text">⚠</span>
+  <button id="alarmSnooze" class="alarm-btn">Snooze</button>
+  <button id="alarmOff" class="alarm-btn">Alarm uit</button>
+</div>
+
+
+
+
+
+<!-- Kaart: spoor, route en foto's, getekend uit onze eigen gegevens.
+     Bewust zonder kaartbeelden van internet: op zee is er geen verbinding, en
+     op satelliet kost inzoomen zomaar een megabyte. De kustlijn staat op de
+     plotter; dit is de reis. -->
+<div id="kaartOverlay" class="web-overlay">
+  <div class="web-bar">
+    <span class="web-title">Kaart</span>
+    <span class="kaart-samenvatting" id="kaartSamenvatting"></span>
+    <button id="kaartClose" class="web-close">✕ Sluiten</button>
+  </div>
+  <div class="kaart-wrap">
+    <div class="kaart-vlak" id="kaartVlak"></div>
+    <div class="kaart-legenda">
+      <span><i style="background:#d9c9a3"></i>gevaren</span>
+      <span><i style="background:#49b6ff"></i>route</span>
+      <span><i style="background:#67d6c4"></i>foto</span>
+      <span><i style="background:#e5348b"></i>wij</span>
+      <span><i style="background:#7b93aa"></i>schepen</span>
+    </div>
+  </div>
+</div>
+
+
+
+<div class="app combined">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 14h18l-3 5H6z" stroke="#49b6ff" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 13V3l7 9z" stroke="#2bd576" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      </div>
+      <div>
+        <h1>MAUI · COCKPIT</h1>
+        <div class="sub">NMEA 2000 · Renogy DCC50S</div>
+      </div>
+    </div>
+
+    
+    <div class="status">
+      <div class="live"><span class="d"></span> Live</div>
+      <div class="clock"><span id="clock">--:--:--</span><small id="date">—</small></div>
+    </div>
+  </header>
+
+  <!-- BOAT INSTRUMENTS -->
+  <section class="boat">
+
+    <!-- LEFT: depth + speed through water -->
+    <div class="card alt">
+      <div class="accentline"></div>
+      <div class="head"><div class="t">Diepte & Vaart</div></div>
+      <div class="boatside">
+        <div class="bigstat" id="depthTile">
+          <div class="bn" id="depth">–</div>
+          <div class="bk">Diepte onder kiel (m)</div>
+        </div>
+        <div class="bigstat">
+          <div class="bn" id="stw">–</div>
+          <div class="bk">Snelheid door water</div>
+        </div>
+        <div class="temp-row">
+          <div class="bigstat"><div class="bn small" id="engTemp">–</div><div class="bk">Motorruimte</div></div>
+          <div class="bigstat"><div class="bn small" id="exhTemp">–</div><div class="bk">Uitlaat</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER: wind compass rose -->
+    <div class="card center">
+      <div class="accentline"></div>
+      <div class="head"><div class="t">Wind & Koers</div></div>
+      <div class="wind-area">
+      <div class="rosewrap">
+        <svg class="windrose" viewBox="0 0 300 300">
+          <defs>
+            <radialGradient id="roseBg" cx="50%" cy="50%" r="50%">
+              <stop offset="0" stop-color="#080d14" stop-opacity=".62"/>
+              <stop offset="0.74" stop-color="#080d14" stop-opacity=".46"/>
+              <stop offset="1" stop-color="#080d14" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <!-- translucent backdrop disc (lets the chart show through softly) -->
+          <circle cx="150" cy="150" r="150" fill="url(#roseBg)"/>
+          <!-- fixed outer ring -->
+          <circle cx="150" cy="150" r="132" class="rose-ring"/>
+          <!-- rotating compass card (N/E/S/W) -->
+          <g id="compassCard">
+            <g class="rose-ticks">
+              <!-- 12 ticks every 30deg -->
+              <line x1="150" y1="20" x2="150" y2="34"/>
+              <line x1="150" y1="20" x2="150" y2="34" transform="rotate(30 150 150)"/>
+              <line x1="150" y1="20" x2="150" y2="34" transform="rotate(60 150 150)"/>
+              <line x1="150" y1="20" x2="150" y2="34" transform="rotate(90 150 150)"/>
+              <line x1="150" y1="20" x2="150" y2="34" transform="rotate(120 150 150)"/>
+              <line x1="150" y1="20" x2="150" y2="34" transform="rotate(150 150 150)"/>
+              <line x1="150" y1="20" x2="150" y2="34" transform="rotate(180 150 150)"/>
+              <line x1="150" y1="20" x2="150" y2="34" transform="rotate(210 150 150)"/>
+              <line x1="150" y1="20" x2="150" y2="34" transform="rotate(240 150 150)"/>
+              <line x1="150" y1="20" x2="150" y2="34" transform="rotate(270 150 150)"/>
+              <line x1="150" y1="20" x2="150" y2="34" transform="rotate(300 150 150)"/>
+              <line x1="150" y1="20" x2="150" y2="34" transform="rotate(330 150 150)"/>
+            </g>
+            <text x="150" y="52" class="card-n">N</text>
+            <text x="248" y="156" class="card-c">O</text>
+            <text x="150" y="256" class="card-c">Z</text>
+            <text x="52" y="156" class="card-c">W</text>
+          </g>
+          <!-- lubber line / bow marker (fixed, top) -->
+          <path d="M150 8 l7 13 h-14 z" class="lubber"/>
+          <!-- apparent wind arrow (rotates to AWA), points inward toward boat -->
+          <g id="windArrow" class="windarrow">
+            <line x1="150" y1="34" x2="150" y2="104"/>
+            <path d="M150 104 l-9 -14 h18 z"/>
+          </g>
+          <!-- boat silhouette, fixed, bow up -->
+          <path d="M150 112 C 162 128 162 168 150 192 C 138 168 138 128 150 112 Z" class="boat-icon"/>
+          <!-- centre readout -->
+          <text x="150" y="150" class="aws-big" id="aws">–</text>
+          <text x="150" y="172" class="aws-unit">knopen schijnbaar</text>
+          <text x="150" y="214" class="awa-lbl" id="awaLabel">—</text>
+        </svg>
+      </div>
+      <div class="wind-chart">
+        <div class="wc-head"><span>Windsnelheid · 30 min</span><span class="wc-vals">nu <b id="awsNow" class="wc-now">–</b> · min <span id="windMin">–</span> · max <span id="windMax">–</span> kn</span></div>
+        <div class="wc-plot">
+          <svg id="windTrend" viewBox="0 0 300 150" preserveAspectRatio="none"></svg>
+          <span class="wc-ax wc-ax-top" id="windAxTop">–</span>
+          <span class="wc-ax wc-ax-mid" id="windAxMid">–</span>
+          <span class="wc-ax wc-ax-bot">0</span>
+        </div>
+      </div>
+      </div>
+      <div class="readouts mini">
+        <div class="ro"><div class="n small" id="cog">–</div><div class="k">Koers o.d. grond</div></div>
+        <div class="ro"><div class="n small" id="logNm">–</div><div class="k">Log totaal</div></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: heading + SOG + rudder -->
+    <div class="card solar">
+      <div class="accentline"></div>
+      <div class="head"><div class="t">Koers & Grondsnelheid</div></div>
+      <div class="boatside">
+        <div class="bigstat">
+          <div class="bn" id="hdg">–</div>
+          <div class="bk">Kompaskoers (mag.)</div>
+        </div>
+        <div class="bigstat">
+          <div class="bn" id="sog">–</div>
+          <div class="bk">Snelheid over grond (GPS)</div>
+        </div>
+        <div class="bigstat">
+          <div class="bn small" id="rudder">–</div>
+          <div class="bk">Roerhoek</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AIS: nearby ships -->
+    <div class="card alt ais-card">
+      <div class="accentline"></div>
+      <div class="head"><div class="ic" style="background:rgba(73,182,255,.12)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 17l8 4 8-4M5 13l7 3 7-3M12 3v11M7 9l5 2 5-2" stroke="#49b6ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="t">Schepen dichtbij (AIS)</div></div>
+      <div class="ais-table" id="aisTable"><div class="ais-empty">—</div></div>
+    </div>
+  </section>
+
+  <!-- SOLAR STRIP -->
+  <section class="solar-strip">
+    <div class="card battery-card">
+      <div class="accentline" style="background:linear-gradient(90deg,transparent,var(--battery),transparent)"></div>
+      <div class="head"><div class="ic" style="background:rgba(43,213,118,.12)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="7" width="16" height="10" rx="2" stroke="#2bd576" stroke-width="1.8"/><rect x="19" y="10" width="2.6" height="4" rx="1" fill="#2bd576"/><path d="M7 12h2.4M8.2 10.8v2.4" stroke="#2bd576" stroke-width="1.6" stroke-linecap="round"/><path d="M13.6 12h2.4" stroke="#2bd576" stroke-width="1.6" stroke-linecap="round"/></svg></div><div class="t">Accu</div></div>
+      <div class="gauge-mini">
+        <div class="gauge" data-color="battery">
+          <svg viewBox="0 0 200 200"><circle class="track" cx="100" cy="100" r="86"/><circle class="arc" cx="100" cy="100" r="86"/></svg>
+          <div class="val"><div><span class="big" id="soc">–</span><span class="unit">%</span></div><div class="lbl" id="stageName">—</div></div>
+        </div>
+      </div>
+      <div class="readouts mini">
+        <div class="ro"><div class="n small" id="battV">–</div><div class="k">Volt</div></div>
+        <div class="ro"><div class="n small" id="battA">–</div><div class="k">Laden A</div></div>
+      </div>
+    </div>
+
+    <div class="card stat-card solar">
+      <div class="accentline"></div>
+      <div class="head"><div class="ic" style="background:rgba(255,194,75,.12)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><rect x="3" y="4.5" width="18" height="11" rx="1" stroke="#ffc24b" stroke-width="1.7"/><path d="M3 8.2h18M3 11.8h18M9 4.5v11M15 4.5v11" stroke="#ffc24b" stroke-width="1.1"/><path d="M12 15.5v4M9 19.5h6" stroke="#ffc24b" stroke-width="1.7" stroke-linecap="round"/></svg></div><div class="t">Zon (totaal)</div><span class="head-w"><b id="totalSolar">–</b> W</span></div>
+      <div class="src-rows">
+        <div class="src-box renogy"><span class="src-w"><b id="pvPower">–</b><small>W</small></span><span class="src-name">Renogy</span></div>
+        <div class="src-box victron"><span class="src-w"><b id="vicSolar">–</b><small>W</small></span><span class="src-name">Victron</span></div>
+      </div>
+    </div>
+
+    <div class="card stat-card alt">
+      <div class="accentline"></div>
+      <div class="head"><div class="ic" style="background:rgba(73,182,255,.12)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="#49b6ff" stroke-width="1.8"/><path d="M12.6 7l-2.4 5.3h3L11.4 17" stroke="#49b6ff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="t">Dynamo</div></div>
+      <div class="hero-num"><span id="altPower">–</span><small>W</small></div>
+      <div class="readouts mini">
+        <div class="ro"><div class="n small" id="altV">–</div><div class="k">Volt</div></div>
+        <div class="ro"><div class="n small" id="altA">–</div><div class="k">Ampère</div></div>
+      </div>
+    </div>
+
+    <div class="card stat-card">
+      <div class="accentline" style="background:linear-gradient(90deg,transparent,var(--battery),transparent)"></div>
+      <div class="head"><div class="t">Naar accu vandaag</div></div>
+      <div class="hero-num battery-c"><span id="ahToday">–</span><small>Ah</small></div>
+      <div class="readouts mini">
+        <div class="ro"><div class="n small" id="whToday">–</div><div class="k">Wh vandaag</div></div>
+        <div class="ro"><div class="n small" id="peakW">–</div><div class="k">Piek W</div></div>
+      </div>
+    </div>
+
+    <div class="card chart-card">
+      <div class="ch-head">
+        <div class="t">Opbrengst — 24 uur</div>
+        <div class="legend"><span><i style="background:var(--solar)"></i>Zon</span><span><i style="background:var(--alt)"></i>Dynamo</span></div>
+      </div>
+      <svg id="trend" viewBox="0 0 600 118" preserveAspectRatio="none"></svg>
+    </div>
+  </section>
+</div>
+
+<script>
+  // Alleen de klok; de rest van het oorspronkelijke script bediende knoppen die
+  // op de publieke versie niet bestaan. Zie scripts/strip_for_public.py.
+  function clock(){
+    const d=new Date(), p=n=>String(n).padStart(2,'0');
+    const c=document.getElementById('clock'), dt=document.getElementById('date');
+    if(c) c.textContent=`${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+    if(dt) dt.textContent=d.toLocaleDateString('nl-NL',{weekday:'short',day:'2-digit',month:'short'});
+  }
+  clock(); setInterval(clock,1000);
+</script>
+<script src="config.js"></script>
+<script type="module" src="app.js?v=599beaf3"></script>
+</body>
+</html>

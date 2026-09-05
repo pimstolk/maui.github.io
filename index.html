@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Maui · waar zijn we</title>
+<meta name="robots" content="noindex, nofollow" />
+<meta name="description" content="Volg de zeilboot Maui: laatst bekende positie, gevaren route, wind en snelheid." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="volgen.css?v=dede45bd" />
+<script>window.MAUI_BOUW='eb5c271b7b1f';</script>
+</head>
+<body>
+
+<!-- Een drempel, geen slot: het antwoord staat in poort.js en de databestanden
+     blijven direct opvraagbaar. Houdt toevallige bezoekers tegen, meer niet. -->
+<div class="poort" id="poort" hidden>
+  <form class="poort-kaart" id="poortForm">
+    <div class="poort-kop">Maui</div>
+    <label class="poort-vraag" for="poortAntwoord" id="poortVraag">Thuishaven?</label>
+    <input class="poort-in" id="poortAntwoord" type="text" autocomplete="off"
+           autocapitalize="off" spellcheck="false" placeholder="…" />
+    <button class="poort-knop" type="submit">Binnen</button>
+    <div class="poort-fout" id="poortFout" hidden>Dat is hem niet.</div>
+  </form>
+</div>
+
+<div class="blad" id="blad" hidden>
+
+  <header class="kop">
+    <div class="naam">
+      <h1>Maui</h1>
+      <span class="type">Zeilboot · Het Kanaal</span>
+    </div>
+    <!-- De verseheid is de kop: het eerste wat je wil weten is hoe oud dit is. -->
+    <div class="vers" id="vers">
+      <span class="stip"></span>
+      <span id="versTekst">gegevens ophalen…</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="kaartblad">
+      <div id="kaart"></div>
+      <div class="kaart-leeg" id="kaartLeeg" hidden>
+        Nog geen posities ontvangen.<br />De route verschijnt zodra Maui weer vaart.
+      </div>
+    </div>
+
+    <section class="loglat" aria-label="Door de tijd bladeren">
+      <div class="loglat-kop">
+        <span class="t">Terugkijken</span>
+        <span class="moment" id="moment">—</span>
+        <div class="venster" role="group" aria-label="Hoe ver terug">
+          <button type="button" data-uren="24" aria-pressed="true">24 uur</button>
+          <button type="button" data-uren="168" aria-pressed="false">7 dagen</button>
+          <button type="button" data-uren="720" aria-pressed="false">30 dagen</button>
+        </div>
+      </div>
+      <input type="range" class="schuif" id="schuif" min="0" max="100" value="100"
+             aria-label="Tijdstip kiezen" />
+      <div class="uiteinden">
+        <span id="vanaf">—</span>
+        <span id="totEn">nu</span>
+      </div>
+    </section>
+
+    <section class="camera" id="camera" hidden aria-label="Laatste camerabeeld">
+      <img id="cameraBeeld" alt="Laatste beeld van de camera aan boord" />
+      <div class="camera-bij" id="cameraBij"></div>
+    </section>
+
+    <!-- Alleen zichtbaar als er een route geüpload is; anders zegt dit niets. -->
+    <section class="routevak" id="routevak" hidden aria-label="Onderweg naar">
+      <div class="routekop">
+        <span class="t">Onderweg naar</span>
+        <span class="routenaam" id="routeNaam">—</span>
+        <span class="routebeen" id="routeBeen"></span>
+      </div>
+      <div class="routecellen">
+        <div class="rc groot">
+          <div class="k">Nog te gaan</div>
+          <div class="w" id="rDtd">—<small>NM</small></div>
+          <div class="bij" id="rDtdBij">—</div>
+        </div>
+        <div class="rc">
+          <div class="k">VMG</div>
+          <div class="w" id="rVmg">—<small>kn</small></div>
+          <div class="bij" id="rVmgBij">naar volgend punt</div>
+        </div>
+        <div class="rc">
+          <div class="k">Aankomst</div>
+          <div class="w" id="rEta">—</div>
+          <div class="bij" id="rEtaBij">—</div>
+        </div>
+        <div class="rc">
+          <div class="k">Peiling</div>
+          <div class="w" id="rPeiling">—<small>°</small></div>
+          <div class="bij" id="rPeilingBij">—</div>
+        </div>
+        <div class="rc">
+          <div class="k">Routelengte</div>
+          <div class="w" id="rLengte">—<small>NM</small></div>
+          <div class="bij" id="rAf">—</div>
+        </div>
+      </div>
+      <div class="routebalk"><span id="routeVoortgang"></span></div>
+    </section>
+
+    <section class="aflezingen" aria-label="Aflezingen op het gekozen moment">
+      <div class="af positie">
+        <div class="k">Positie</div>
+        <div class="w" id="afPositie">—</div>
+        <div class="bij" id="afPositieBij">geen fix</div>
+      </div>
+      <div class="af">
+        <div class="k">Over de grond</div>
+        <div class="w" id="afSog">—<small>kn</small></div>
+        <div class="bij" id="afCog">koers —</div>
+      </div>
+      <div class="af">
+        <div class="k">Door het water</div>
+        <div class="w" id="afStw">—<small>kn</small></div>
+        <div class="bij" id="afHdg">kompas —</div>
+      </div>
+      <div class="af">
+        <div class="k">Wind</div>
+        <div class="w" id="afWind">—<small>kn</small></div>
+        <div class="bij" id="afWindHoek">—</div>
+      </div>
+      <div class="af">
+        <div class="k">Diepte</div>
+        <div class="w" id="afDiepte">—<small>m</small></div>
+        <div class="bij" id="afTrip">—</div>
+      </div>
+      <div class="af">
+        <div class="k">Zon</div>
+        <div class="w" id="afZon">—<small>W</small></div>
+        <div class="bij" id="afZonBij">—</div>
+      </div>
+      <div class="af">
+        <div class="k">Accu</div>
+        <div class="w" id="afAccu">—<small>%</small></div>
+        <div class="bij" id="afAccuBij">—</div>
+      </div>
+    </section>
+
+    <section class="instrumenten" aria-label="Wind en koers op het gekozen moment">
+      <div class="inst">
+        <div class="inst-kop"><span class="t">Wind</span><span class="bij" id="windroosBij">—</span></div>
+        <div class="inst-vak" id="windroos"></div>
+      </div>
+      <div class="inst">
+        <div class="inst-kop"><span class="t">Koers</span><span class="bij" id="kompasBij">—</span></div>
+        <div class="inst-vak" id="kompas"></div>
+      </div>
+    </section>
+
+    <section class="grafieken">
+      <div class="gr">
+        <div class="gr-kop">
+          <span class="t">Wind</span>
+          <span class="sleutel">
+            <span><i style="background:var(--wind)"></i>kracht (kn)</span>
+            <span><i style="background:var(--ondiep)"></i>richting</span>
+          </span>
+        </div>
+        <svg id="grWind" viewBox="0 0 600 156" preserveAspectRatio="none" role="img"
+             aria-label="Windkracht en windrichting over tijd"></svg>
+        <div class="leeg" id="grWindLeeg" hidden>Nog te weinig metingen.</div>
+      </div>
+
+      <div class="gr">
+        <div class="gr-kop">
+          <span class="t">Snelheid</span>
+          <span class="sleutel">
+            <span><i style="background:var(--sog)"></i>over de grond</span>
+            <span><i style="background:var(--stw)"></i>door het water</span>
+          </span>
+        </div>
+        <svg id="grSnelheid" viewBox="0 0 600 156" preserveAspectRatio="none" role="img"
+             aria-label="Snelheid over de grond en door het water"></svg>
+        <div class="leeg" id="grSnelheidLeeg" hidden>Nog te weinig metingen.</div>
+      </div>
+      <div class="gr">
+        <div class="gr-kop">
+          <span class="t">Zonneopbrengst</span>
+          <span class="sleutel">
+            <span><i style="background:var(--renogy)"></i>Renogy</span>
+            <span><i style="background:var(--victron)"></i>Victron</span>
+          </span>
+        </div>
+        <svg id="grZon" viewBox="0 0 600 156" preserveAspectRatio="none" role="img"
+             aria-label="Zonneopbrengst van Renogy en Victron over tijd"></svg>
+        <div class="leeg" id="grZonLeeg" hidden>Nog te weinig metingen.</div>
+      </div>
+    </section>
+
+    <p class="voet">
+      Maui meet aan boord elke dertig seconden en stuurt dat door zolang er
+      internet is. Blijft het hier stil, dan is de boot buiten bereik — de laatste
+      bekende positie blijft staan.<br />
+      Kaart © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>,
+      tegels © <a href="https://carto.com/attributions">CARTO</a>.
+    </p>
+  </main>
+
+  <div class="beeldvenster" id="beeldvenster" hidden>
+    <button class="beeld-sluit" id="beeldSluit" aria-label="Sluiten">✕</button>
+    <img id="beeldGroot" alt="" />
+    <div class="beeld-bij" id="beeldBij"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="config.js"></script>
+<script type="module" src="volgen.js?v=eb5c271b"></script>
+</body>
+</html>
