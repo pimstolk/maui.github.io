@@ -1,1 +1,1 @@
-{"t":1788954258,"reading":{},"boat":{},"victron":{},"total_solar_w":null,"ais":[],"health":{},"snapshot":null}
+{"t":1788954294,"reading":{},"boat":{},"victron":{},"total_solar_w":0,"ais":[],"health":{"connected":false,"stale":true,"last_seen":null,"error":null,"model":null},"snapshot":{"bestand":"snapshot.jpg","bytes":23675,"gemaakt":null,"geplaatst":1788954293,"accu":33,"archief":"2026-09-09/134453.jpg"}}
