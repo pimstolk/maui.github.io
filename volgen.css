@@ -101,6 +101,11 @@ body {
 
 /* Leaflet in kaartkleuren trekken */
 .leaflet-container { background: var(--zee) !important; font-family: var(--data); }
+/* De OSM-tegels zijn licht; omgekeerd en een halve slag in kleur gedraaid
+   worden ze een nachtkaart: water diepblauw, land donkergrijs, namen licht.
+   Alleen de tegellaag -- de merktekens, het spoor en de zeemerken (eigen pane)
+   houden hun eigen kleuren. */
+.leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.78) contrast(.92) saturate(.8); }
 .leaflet-control-attribution {
   background: rgba(6,17,29,.78) !important; color: var(--inkt-vaag) !important;
   font-size: 10px !important;

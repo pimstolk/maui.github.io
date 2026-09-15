@@ -67,11 +67,23 @@ function maakKaart() {
     return;
   }
   kaart = L.map('kaart', { zoomControl: true, attributionControl: true });
-  // Donkere tegels mét plaatsnamen: zonder namen is het een grijze vlek en kan
-  // niemand thuis zien dat dit Normandië is.
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  // De gewone OpenStreetMap-tegels, met een CSS-filter donker gemaakt (zie
+  // .leaflet-tile-pane in volgen.css). Tot 15-09-2026 kwamen hier de donkere
+  // tegels van CARTO, maar die vragen sinds kort een API-sleutel en tonen
+  // anders "API KEY REQUIRED" dwars over de kaart. OSM vraagt geen sleutel;
+  // plaatsnamen blijven leesbaar, en dat was de eis: zonder namen is het een
+  // grijze vlek en kan niemand thuis zien dat dit Madeira is.
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    attribution: '&copy; OpenStreetMap &copy; CARTO',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  }).addTo(kaart);
+  // Zeekaartmerken van OpenSeaMap (boeien, lichten, ankerplaatsen) in een eigen
+  // laag zonder het donkerfilter -- een rode boei moet rood blijven. Vrij en
+  // zonder sleutel; blijft de server stil, dan ontbreken alleen de merken.
+  kaart.createPane('zeemerken').style.zIndex = 250;
+  L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+    pane: 'zeemerken', maxZoom: 19, minZoom: 9,
+    attribution: '&copy; <a href="https://www.openseamap.org">OpenSeaMap</a>',
   }).addTo(kaart);
   // Volgorde is betekenis: de geüploade routes liggen onderop, daarboven de
   // werkelijk gevaren track, en bovenop waar we nu zijn.
