@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Maui · Cockpit</title>
-<link rel="stylesheet" href="styles.css?v=cda6c5e9">
+<link rel="stylesheet" href="styles.css?v=a87a2f03">
 </head>
 <body>
 <div id="staleBanner" style="display:flex;position:fixed;top:0;left:0;right:0;z-index:50;
@@ -20,9 +20,6 @@
   <button id="alarmSnooze" class="alarm-btn">Snooze</button>
   <button id="alarmOff" class="alarm-btn">Alarm uit</button>
 </div>
-
-
-
 
 
 <!-- Kaart: spoor, route en foto's, getekend uit onze eigen gegevens.
@@ -47,8 +44,6 @@
   </div>
 </div>
 
-
-
 <div class="app combined">
 
   <!-- TOP BAR -->
@@ -65,6 +60,7 @@
 
     
     <div class="status">
+      <span class="anker-chip" id="ankerChip" style="display:none;"></span>
       <div class="live"><span class="d"></span> Live</div>
       <div class="clock"><span id="clock">--:--:--</span><small id="date">—</small></div>
     </div>
@@ -260,6 +256,6 @@
   clock(); setInterval(clock,1000);
 </script>
 <script src="config.js"></script>
-<script type="module" src="app.js?v=599beaf3"></script>
+<script type="module" src="app.js?v=4959af88"></script>
 </body>
 </html>

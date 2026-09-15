@@ -378,3 +378,62 @@ input[type=range].schuif:focus-visible { outline: 2px solid var(--overprint); ou
   .rc.groot .w { font-size: 30px; }
   .rc .w { font-size: 22px; }
 }
+
+
+/* ---------- voor anker: de wacht ----------------------------------------- */
+/* Zelfde vorm als het routevak; het rood is het rood van een alarm en komt
+   verder nergens op de pagina voor. */
+.ankervak {
+  background: var(--zee); border: 1px solid var(--lijn);
+  border-radius: 14px; padding: 16px 18px 14px; margin-top: 14px;
+}
+.ankervak[hidden] { display: none; }
+.ankervak.buiten, .ankervak.geenfix {
+  border-color: rgba(255,93,99,.7);
+  box-shadow: 0 0 0 1px rgba(255,93,99,.35), 0 0 34px -10px #ff5d63;
+}
+.ankerkop {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.ankerkop .t {
+  font-family: var(--data); font-size: 11px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--inkt-vaag);
+}
+.ankerstatus {
+  font-family: var(--display); font-size: 16px; font-weight: 600; color: var(--inkt);
+}
+.ankervak.rust .ankerstatus { color: #67d6c4; }
+.ankervak.buiten .ankerstatus, .ankervak.geenfix .ankerstatus { color: #ff5d63; }
+.ankervers {
+  margin-left: auto; font-family: var(--data); font-size: 11px; color: var(--inkt-vaag);
+}
+.ankervers.stil { color: #ffb547; }
+.ankervak .rc.groot .w { color: var(--inkt); }
+.ankervak.buiten .rc.groot .w { color: #ff5d63; }
+.ankervak .rc .w.tijd { font-size: 20px; }
+
+.ankerlog { margin-top: 14px; }
+.ankerlog summary {
+  cursor: pointer; font-family: var(--data); font-size: 11px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--inkt-zwak); list-style: none;
+}
+.ankerlog summary::before { content: "▸ "; }
+.ankerlog[open] summary::before { content: "▾ "; }
+.ankerlog table {
+  width: 100%; margin-top: 10px; border-collapse: collapse;
+  font-family: var(--data); font-size: 12px; font-variant-numeric: tabular-nums;
+}
+.ankerlog th {
+  text-align: left; font-weight: 400; font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--inkt-vaag); padding: 4px 8px 6px 0;
+}
+.ankerlog td { padding: 4px 8px 4px 0; border-top: 1px solid var(--lijn); color: var(--inkt-zwak); }
+.ankerlog td:first-child { color: var(--inkt); white-space: nowrap; }
+.ankerlog tr.ver td { color: #ff5d63; }
+
+/* Het anker op de kaart. */
+.ankerstip {
+  display: block; width: 26px; height: 26px; line-height: 26px; text-align: center;
+  border-radius: 50%; background: rgba(6,17,29,.85); border: 1.5px solid #ff5d63;
+  color: #ff8a8e; font-size: 15px;
+}

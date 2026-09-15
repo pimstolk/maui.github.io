@@ -510,9 +510,11 @@ async function tekenKaartAanBoord() {
       .filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lon))
       .map(s => ({ lat: s.lat, lon: s.lon }));
 
+    const anker = (_anker && _anker.actief)
+      ? { lat: _anker.lat, lon: _anker.lon, straal_m: _anker.straal_m } : null;
     vlak.innerHTML = kaartSvg({
       spoor, route: route.map(([lat, lon]) => ({ lat, lon })), fotos, eigen, schepen,
-      land: _land, breedte: 1180, hoogte: 560,
+      land: _land, anker, breedte: 1180, hoogte: 560,
     });
 
     const sam = document.getElementById('kaartSamenvatting');
@@ -530,6 +532,198 @@ async function tekenKaartAanBoord() {
 }
 
 if (typeof window !== 'undefined') window.tekenKaartAanBoord = tekenKaartAanBoord;
+
+// ---- ankerwacht ----
+//
+// De regels zitten op de Pi (renogy_dashboard/anker.py); het scherm krijgt de
+// toestand kant-en-klaar via de websocket en hoeft alleen te tonen en te
+// bedienen. De twee functies hieronder zijn puur, zodat node ze kan toetsen:
+// een alarmbalk die het verkeerde getal noemt is erger dan geen balk.
+
+const GEEN_FIX_S = 120;
+
+function minTekst(s) {
+  if (s == null || !Number.isFinite(s)) return '—';
+  if (s < 60) return `${Math.round(s)} s`;
+  const m = Math.round(s / 60);
+  if (m < 90) return `${m} min`;
+  return `${Math.floor(m / 60)} u ${m % 60} min`;
+}
+
+export function ankerTekst(a, nuS = Date.now() / 1000) {
+  if (!a || !a.actief) {
+    return { actief: false, status: 'uit', chip: '', banner: '', kop: 'Geen anker gezet' };
+  }
+  const afstand = a.afstand_m == null ? null : Math.round(a.afstand_m);
+  const straal = Math.round(a.straal_m);
+  const fixOudS = a.fix_op == null ? null : Math.max(0, nuS - a.fix_op);
+  let status = 'rust', banner = '', kop = 'Anker houdt';
+  let chip = `⚓ ${afstand == null ? '—' : afstand} m / ${straal} m`;
+  if (a.alarm && a.reden === 'geen fix') {
+    status = 'geenfix';
+    const weg = fixOudS == null ? (nuS - a.alarm_sinds + GEEN_FIX_S) : fixOudS;
+    banner = `⚓ ANKERALARM · geen GPS-positie sinds ${minTekst(weg)}`;
+    kop = 'Geen GPS-positie';
+    chip = '⚓ geen fix';
+  } else if (a.alarm) {
+    status = 'buiten';
+    banner = `⚓ ANKERALARM · ${afstand} m van het anker, straal ${straal} m`;
+    kop = 'Anker krabt';
+  }
+  return {
+    actief: true, status, chip, banner, kop, afstand, straal,
+    max: Math.round(a.max_afstand_m || 0), peiling: a.peiling,
+    sinds: a.gezet_op, fixOudS, alarmSinds: a.alarm_sinds,
+  };
+}
+
+/**
+ * De tekening in het ankerscherm: het anker in het midden, de straal als
+ * cirkel, het zwaaispoor sinds het anker viel (ouder = vager) en de boot.
+ * De schaal past zich aan: ligt de boot buiten de straal, dan zoomt hij uit
+ * zodat je ziet hoe ver.
+ */
+export function ankerPlotSvg(a, spoor, size = 560, eigen = null) {
+  const cx = size / 2, cy = size / 2, R = size / 2 - 34;
+  if (!a || !a.actief || !Number.isFinite(a.lat) || !Number.isFinite(a.lon)) {
+    return `<text x="${cx}" y="${cy}" fill="#7c8ba0" font-size="16" text-anchor="middle">geen anker gezet</text>`;
+  }
+  const coslat = Math.cos(a.lat * Math.PI / 180);
+  const mNoord = (lat) => (lat - a.lat) * 110574;
+  const mOost = (lon) => (lon - a.lon) * 111320 * coslat;
+  const afstandVan = (lat, lon) => Math.hypot(mNoord(lat), mOost(lon));
+  const punten = (spoor || [])
+    .filter((p) => Array.isArray(p) && p.length === 3 && p.every(Number.isFinite))
+    .map(([t, lat, lon]) => ({ t, lat, lon }));
+  let maxM = Number(a.straal_m) * 1.3;
+  punten.forEach((p) => { maxM = Math.max(maxM, afstandVan(p.lat, p.lon) * 1.15); });
+  if (eigen && Number.isFinite(eigen.lat)) maxM = Math.max(maxM, afstandVan(eigen.lat, eigen.lon) * 1.15);
+  if (a.afstand_m != null) maxM = Math.max(maxM, a.afstand_m * 1.15);
+  const k = R / maxM;
+  const proj = (lat, lon) => [cx + mOost(lon) * k, cy - mNoord(lat) * k];
+  const f = (v) => v.toFixed(1);
+
+  let svg = '';
+  // Een fijne ring op de halve straal, en de straal zelf in het rood van het alarm.
+  const rs = Number(a.straal_m) * k;
+  svg += `<circle cx="${cx}" cy="${cy}" r="${f(rs / 2)}" class="rr"/>`;
+  svg += `<circle cx="${cx}" cy="${cy}" r="${f(rs)}" class="straal"/>`;
+  svg += `<text x="${f(cx + 6)}" y="${f(cy - rs + 15)}" class="rrl">${Math.round(a.straal_m)} m</text>`;
+  svg += `<text x="${cx}" y="20" class="card-n2">N</text>`;
+
+  // Het zwaaispoor in drie leeftijden: alles ouder dan een uur vaag, het
+  // laatste uur duidelijker, het laatste kwartier fel.
+  const nuS = punten.length ? punten[punten.length - 1].t : 0;
+  const lagen = [[Infinity, 3600, .25], [3600, 900, .5], [900, 0, .9]];
+  lagen.forEach(([van, tot, op]) => {
+    const deel = punten.filter((p) => (nuS - p.t) < van && (nuS - p.t) >= tot);
+    if (deel.length < 2) return;
+    const d = deel.map((p, i) => { const [x, y] = proj(p.lat, p.lon); return `${i ? 'L' : 'M'}${f(x)},${f(y)}`; }).join('');
+    svg += `<path d="${d}" class="zwaai" opacity="${op}"/>`;
+  });
+
+  // Het anker zelf.
+  svg += `<text x="${cx}" y="${f(cy + 7)}" class="ankermerk" text-anchor="middle">⚓</text>`;
+
+  // Wij: de laatste fix, of het laatste spoorpunt.
+  const b = (eigen && Number.isFinite(eigen.lat) && Number.isFinite(eigen.lon))
+    ? eigen : (punten.length ? punten[punten.length - 1] : null);
+  if (b) {
+    const [x, y] = proj(b.lat, b.lon);
+    svg += `<line x1="${cx}" y1="${cy}" x2="${f(x)}" y2="${f(y)}" class="lijn"/>`;
+    svg += `<circle cx="${f(x)}" cy="${f(y)}" r="7" class="boot"/>`;
+  }
+  return svg;
+}
+
+let _anker = null;
+let _ankerSpoor = [];
+let _ankerOpen = false;
+let _ankerSpoorTimer = 0;
+let _ankerBeepTimer = 0;
+
+const klokVan = (ts) => {
+  if (ts == null) return '—';
+  const d = new Date(ts * 1000);
+  return d.toLocaleString('nl-NL', { weekday: 'short', day: '2-digit', month: 'short',
+                                     hour: '2-digit', minute: '2-digit' });
+};
+
+function renderAnkerPlot(doc = document) {
+  const el = doc.getElementById('ankerPlot');
+  if (el) el.innerHTML = ankerPlotSvg(_anker, _ankerSpoor, 560, _self);
+}
+
+async function haalAnkerSpoor() {
+  try {
+    const r = await fetch('/api/anker/spoor');
+    const { spoor } = await r.json();
+    _ankerSpoor = spoor || [];
+    renderAnkerPlot();
+  } catch (e) { /* laat de vorige tekening staan */ }
+}
+
+export function applyAnker(a, doc = document, nuS = Date.now() / 1000) {
+  _anker = a;
+  const t = ankerTekst(a, nuS);
+  const set = (id, s) => { const e = doc.getElementById(id); if (e) e.textContent = s; };
+
+  // De chip in de kop: altijd zichtbaar zolang het anker ligt.
+  const chip = doc.getElementById('ankerChip');
+  if (chip) {
+    chip.style.display = t.actief ? 'inline-flex' : 'none';
+    chip.textContent = t.chip;
+    chip.classList.toggle('alarm', t.status !== 'rust' && t.actief);
+  }
+
+  // De alarmbalk over het hele scherm.
+  const banner = doc.getElementById('ankerBanner');
+  if (banner) {
+    banner.style.display = t.banner ? 'flex' : 'none';
+    set('ankerBannerText', t.banner);
+    // Alleen aan boord klinkt er iets; thuis is de balk genoeg.
+    const geluid = !!t.banner && CFG.mode !== 'cloud';
+    banner.classList.toggle('sounding', geluid);
+    if (geluid && !_ankerBeepTimer && typeof setInterval !== 'undefined') {
+      alarmBeep();
+      _ankerBeepTimer = setInterval(alarmBeep, 3000);
+    } else if (!geluid && _ankerBeepTimer) {
+      clearInterval(_ankerBeepTimer); _ankerBeepTimer = 0;
+    }
+  }
+
+  // Het ankerscherm zelf.
+  set('ankerStatus', t.kop);
+  const st = doc.getElementById('ankerStatus');
+  if (st) st.className = `anker-status ${t.status}`;
+  set('ankerAfstand', t.actief && t.afstand != null ? String(t.afstand) : '–');
+  set('ankerStraalW', t.actief ? String(t.straal) : '–');
+  set('ankerMax', t.actief ? String(t.max) : '–');
+  set('ankerPeiling', t.actief && t.peiling != null ? `${t.peiling}°` : '–');
+  set('ankerSinds', t.actief ? klokVan(t.sinds) : '–');
+  set('ankerFix', t.fixOudS == null ? '–' : `${minTekst(t.fixOudS)} geleden`);
+  const zet = doc.getElementById('ankerZet');
+  if (zet) zet.textContent = t.actief ? '⚓ Anker opnieuw zetten hier' : '⚓ Anker zetten hier';
+  const op = doc.getElementById('ankerOp');
+  if (op) op.disabled = !t.actief;
+  const schuif = doc.getElementById('ankerStraal');
+  if (schuif && a && a.straal_m != null && doc.activeElement !== schuif) {
+    schuif.value = Math.round(a.straal_m);
+    set('ankerStraalOut', `${Math.round(a.straal_m)} m`);
+  }
+  if (_ankerOpen) renderAnkerPlot(doc);
+}
+
+export function ankerOpen(open) {
+  _ankerOpen = !!open;
+  clearInterval(_ankerSpoorTimer); _ankerSpoorTimer = 0;
+  if (_ankerOpen) {
+    applyAnker(_anker);
+    haalAnkerSpoor();
+    _ankerSpoorTimer = setInterval(haalAnkerSpoor, 30000);
+  }
+}
+if (typeof window !== 'undefined') { window.applyAnker = applyAnker; window.ankerOpen = ankerOpen; }
 
 // --- alarm runtime (uses the tested alarmReason/evaluateAlarms) ---
 
@@ -677,6 +871,7 @@ function connect() {
     if (data.boat) applyBoat(data.boat);
     if (data.ais) { _lastAis = data.ais; processAis(); }
     if (data.total_solar_w != null || data.victron) applyVictron(data.victron, data.total_solar_w);
+    if ('anker' in data) applyAnker(data.anker);
     lastMsg = Date.now();
     markStale(false);                  // data is flowing
   };
@@ -717,6 +912,7 @@ async function cloudTick() {
     if (nu.victron || nu.total_solar_w != null) {
       applyVictron(nu.victron, nu.total_solar_w);
     }
+    if ('anker' in nu) applyAnker(nu.anker);
     const ageS = nu.t ? (Date.now() / 1000 - nu.t) : Infinity;
     markStale(ageS > 300);
   } catch (e) { markStale(true); }

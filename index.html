@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<link rel="stylesheet" href="volgen.css?v=dede45bd" />
-<script>window.MAUI_BOUW='eb5c271b7b1f';</script>
+<link rel="stylesheet" href="volgen.css?v=18194190" />
+<script>window.MAUI_BOUW='416b9e7dae03';</script>
 </head>
 <body>
 
@@ -66,6 +66,44 @@
         <span id="vanaf">—</span>
         <span id="totEn">nu</span>
       </div>
+    </section>
+
+    <!-- Alleen zichtbaar als het anker ligt: de wacht, met elke positie op tijd. -->
+    <section class="ankervak" id="ankervak" hidden aria-label="Ankerwacht">
+      <div class="ankerkop">
+        <span class="t">Voor anker</span>
+        <span class="ankerstatus" id="ankerStatus">—</span>
+        <span class="ankervers" id="ankerVers"></span>
+      </div>
+      <div class="routecellen">
+        <div class="rc groot">
+          <div class="k">Van het anker</div>
+          <div class="w" id="akAfstand">—<small>m</small></div>
+          <div class="bij" id="akAfstandBij">straal —</div>
+        </div>
+        <div class="rc">
+          <div class="k">Verste punt</div>
+          <div class="w" id="akMax">—<small>m</small></div>
+          <div class="bij" id="akPeiling">peiling —</div>
+        </div>
+        <div class="rc">
+          <div class="k">Laatste positie</div>
+          <div class="w" id="akPositieT">—</div>
+          <div class="bij" id="akPositieBij">—</div>
+        </div>
+        <div class="rc">
+          <div class="k">Anker gezet</div>
+          <div class="w" id="akSinds">—</div>
+          <div class="bij" id="akSindsBij">—</div>
+        </div>
+      </div>
+      <details class="ankerlog">
+        <summary>Positielogboek</summary>
+        <table>
+          <thead><tr><th>tijd</th><th>afstand</th><th>positie</th></tr></thead>
+          <tbody id="akLog"></tbody>
+        </table>
+      </details>
     </section>
 
     <section class="camera" id="camera" hidden aria-label="Laatste camerabeeld">
@@ -217,6 +255,6 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="config.js"></script>
-<script type="module" src="volgen.js?v=eb5c271b"></script>
+<script type="module" src="volgen.js?v=416b9e7d"></script>
 </body>
 </html>

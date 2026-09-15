@@ -5,6 +5,7 @@
 // aflezingen en de grafieken bij.
 
 import { VRAAG, klopt, onthoud, magBinnen } from './poort.js?v=af1c33a3';
+import { haalAnker, ankerSamenvatting, logboek, spoorOpLeeftijd } from './anker.js?v=d565e55f';
 import { windroosSvg, kompasSvg, windZijde } from './instrumenten.js?v=af7fe36b';
 import {
   haalHistorie, haalNu, haalRoutes, haalSpoor, haalFotos, trackVan, trackStukken,
@@ -28,7 +29,8 @@ let gekozenT = null;        // null = "nu" (het nieuwste monster)
 let routes = [];            // geüploade GPX-routes; los van de tijdschuif
 let spoor = [];             // de héle gevaren route sinds het begin, ook los ervan
 let fotos = [];             // het camera-archief, oudste eerst
-let kaart, laagRoutes, laagTrack, laagFotos, laagFix;
+let anker = null;           // data/anker.json: de ankerwacht, elke minuut vers
+let kaart, laagRoutes, laagTrack, laagFotos, laagAnker, laagFix;
 
 // ---------- ophalen ---------------------------------------------------------
 
@@ -76,6 +78,7 @@ function maakKaart() {
   laagRoutes = L.layerGroup().addTo(kaart);
   laagTrack = L.layerGroup().addTo(kaart);
   laagFotos = L.layerGroup().addTo(kaart);
+  laagAnker = L.layerGroup().addTo(kaart);
   laagFix = L.layerGroup().addTo(kaart);
   kaart.setView([49.64, -1.62], 9);        // Het Kanaal, tot er iets beters is
 }
@@ -201,6 +204,90 @@ function tekenRoutevak() {
   const eta = aankomst(dtd.nm, v, gekozenT === null ? Date.now() : gekozenT);
   html('rEta', eta ? datumKlok(eta.getTime()).replace(/^\w+ /, '') : '—');
   tekst('rEtaBij', eta ? 'bij deze VMG' : 'geen schatting');
+}
+
+// ---------- de ankerwacht ----------------------------------------------------
+
+const ANKER_BRONNEN = [
+  (typeof window !== 'undefined' && window.RENOGY_CONFIG && window.RENOGY_CONFIG.anker) || null,
+  'data/anker.json',
+];
+
+async function laadAnker() {
+  const a = await haalAnker(fetch, ANKER_BRONNEN);
+  if (a) anker = a;                       // een storing wist niet wat we wisten
+  tekenAnker();
+}
+
+/**
+ * Het anker op de kaart: het punt, de straal als cirkel en het zwaaispoor in
+ * lagen op leeftijd. De eerste keer zoomt de kaart erop in; dat is waar je
+ * voor komt als de boot voor anker ligt.
+ */
+function tekenAnkerOpKaart(s) {
+  if (!kaart || !laagAnker) return;
+  laagAnker.clearLayers();
+  if (s.status === 'uit' || !anker || !Number.isFinite(anker.lat)) return;
+  const rood = '#ff5d63';
+  const cirkel = L.circle([anker.lat, anker.lon], {
+    radius: anker.straal_m || 0, color: rood, weight: 1.5, dashArray: '6 5',
+    fillColor: rood, fillOpacity: .06, interactive: false,
+  }).addTo(laagAnker);
+  spoorOpLeeftijd(anker).forEach((laag) => {
+    L.polyline(laag.punten, { color: '#ffc24b', weight: 2, opacity: laag.opacity,
+                              interactive: false }).addTo(laagAnker);
+  });
+  L.marker([anker.lat, anker.lon], {
+    icon: L.divIcon({ className: '', iconSize: [26, 26], iconAnchor: [13, 13],
+                      html: '<span class="ankerstip">⚓</span>' }),
+    keyboard: false,
+  }).bindTooltip(`anker · straal ${Math.round(anker.straal_m)} m`).addTo(laagAnker);
+  if (!tekenAnkerOpKaart.gepast) {
+    kaart.fitBounds(cirkel.getBounds().pad(0.8), { maxZoom: 18 });
+    tekenAnkerOpKaart.gepast = true;
+    tekenKaart.gepast = true;             // de reis hoeft er niet meer overheen
+  }
+}
+
+function tekenAnker() {
+  const vak = $('ankervak');
+  if (!vak) return;
+  const s = ankerSamenvatting(anker);
+  vak.hidden = s.status === 'uit';
+  tekenAnkerOpKaart(s);
+  if (s.status === 'uit') return;
+
+  vak.className = `ankervak ${s.status}`;
+  const tekst = (id, x) => { const e = $(id); if (e) e.textContent = x; };
+  const html = (id, x) => { const e = $(id); if (e) e.innerHTML = x; };
+
+  tekst('ankerStatus', s.status === 'buiten' ? 'ANKERALARM — buiten de straal'
+    : s.status === 'geenfix' ? 'ANKERALARM — geen GPS-positie' : 'anker houdt');
+  const vers = $('ankerVers');
+  if (vers) {
+    vers.textContent = s.bestandT ? `bijgewerkt ${klok(s.bestandT)} · ${leeftijdTekst(Date.now() - s.bestandT)}` : '';
+    vers.classList.toggle('stil', s.stil);
+  }
+  html('akAfstand', s.afstand === null ? '—' : `${s.afstand}<small>m</small>`);
+  tekst('akAfstandBij', s.straal === null ? 'straal —' : `straal ${s.straal} m`);
+  html('akMax', s.max === null ? '—' : `${s.max}<small>m</small>`);
+  tekst('akPeiling', s.peiling == null ? 'peiling —' : `peiling ${Math.round(s.peiling)}°`);
+  const pt = $('akPositieT');
+  if (pt) { pt.classList.add('tijd'); pt.textContent = s.positieT ? klok(s.positieT) : '—'; }
+  tekst('akPositieBij', s.positie
+    ? `${graadMinuut(s.positie.lat, 'N', 'Z')} · ${graadMinuut(s.positie.lon, 'O', 'W')}`
+    : 'geen positie');
+  const st = $('akSinds');
+  if (st) { st.classList.add('tijd'); st.textContent = s.sinds ? datumKlok(s.sinds).replace(/^\w+ /, '') : '—'; }
+  tekst('akSindsBij', s.sinds ? `${leeftijdTekst(Date.now() - s.sinds).replace(' geleden', '')} voor anker` : '');
+
+  const log = $('akLog');
+  if (log) {
+    log.innerHTML = logboek(anker, 600, 18).map((r) =>
+      `<tr class="${s.straal !== null && r.afstand > s.straal ? 'ver' : ''}">`
+      + `<td>${datumKlok(r.t)}</td><td>${r.afstand} m</td>`
+      + `<td>${r.lat.toFixed(5)}, ${r.lon.toFixed(5)}</td></tr>`).join('');
+  }
 }
 
 function toonBeeld(f) {
@@ -500,6 +587,7 @@ function tekenInstrumenten() {
 function tekenAlles() {
   tekenKop();
   tekenSnapshot();
+  tekenAnker();
   tekenInstrumenten();
   tekenSchuif();
   tekenKaart();
@@ -577,6 +665,10 @@ function poortAf() {
   requestAnimationFrame(() => setTimeout(() => kaart && kaart.invalidateSize(), 0));
   bedraad();
   laad(24);
+  // De ankerwacht heeft een eigen, snel ritme: de Pi zet hem elke vier
+  // minuten neer, de pagina kijkt elke minuut.
+  laadAnker();
+  setInterval(laadAnker, 60000);
   setInterval(() => { if (gekozenT === null) laad(activeUren()); }, 60000);
   setInterval(tekenKop, 20000);
   // Elke vijf minuten kijken of er een nieuwe bouw op de site staat.
