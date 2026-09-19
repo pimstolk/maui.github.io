@@ -1,5 +1,5 @@
 import { fmt, gaugePct, stageLabel } from './format.js?v=ce5aaf13';
-import { meldingBestanden } from './stem.js';
+import { meldingBestanden, ankerBestanden } from './stem.js';
 import { kaartSvg } from './kaart.js';
 
 // Data source: 'local' (served by the Pi, uses /ws) or 'cloud' (GitHub Pages,
@@ -9,9 +9,9 @@ const CFG = (typeof window !== 'undefined' && window.RENOGY_CONFIG) || { mode: '
 let _lastAis = [];          // latest AIS targets (for the radar map)
 let _self = null;           // our own {lat, lon, heading_deg}
 let _aisMapOpen = false;
-let _settings = null;       // user settings from /api/settings
-let _ackMmsi = new Set();   // acknowledged threats (muted while still in zone)
-let _snoozeUntil = 0;       // epoch ms; all alarms muted until then
+let _settings = null;       // de instellingen; komen mee over de websocket
+let _alarm = null;          // het scheepsalarm zoals de Pi het beoordeelt (aisalarm.py)
+let _wachters = [];         // wie zich als oor gemeld heeft (de telefoon)
 let _lastBeep = 0;
 let _spreekt = false;       // een melding loopt; er mag er geen tweede overheen
 let _saveTimer = 0;
@@ -102,30 +102,59 @@ export function makePtzController(post, { safetyMs = 4000,
 }
 if (typeof window !== 'undefined') window.makePtzController = makePtzController;
 
-// --- AIS collision alarm (pure decision logic; driven by the settings) ---
-// A target trips the alarm if it's inside the safety radius OR on a collision
-// course (closest approach under the CPA limit and arriving within the TCPA limit).
-export function alarmReason(t, s) {
-  if (t.dist_nm != null && t.dist_nm <= s.alarm_radius_nm) return 'radius';
-  if (t.cpa_nm != null && t.tcpa_min != null &&
-      t.cpa_nm < s.alarm_cpa_nm && t.tcpa_min >= 0 && t.tcpa_min < s.alarm_tcpa_min)
-    return 'collision';
-  return null;
+// ---- het scheepsalarm ----
+//
+// Sinds 19-09-2026 beoordeelt de Pi het scheepsalarm zelf (aisalarm.py) en
+// zendt hij de uitkomst uit: dreigingen, of er geluid moet zijn, tot wanneer
+// het stil is. Dit scherm speelt dat na en stuurt alleen bevestigingen en
+// snooze terug. Daarvoor besliste elke luisteraar zelf, met als gevolg dat
+// snooze per apparaat gold, dat niemand wist of de telefoon wel luisterde, en
+// dat de lijst eerst werd afgeknipt op "aantal tonen" en daarna pas op
+// ramkoers werd bekeken -- een schip op twee mijl viel dan buiten beeld.
+
+const klokKort = (s) => new Date(s * 1000).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+
+/** De tekst van de alarmbalk uit wat de Pi meldt. Puur, voor node. */
+export function alarmTekst(alarm) {
+  const d = (alarm && alarm.dreigingen) || [];
+  if (!d.length) return { tonen: false, geluid: false, tekst: '', schip: null };
+  const near = d[0];
+  const tcpa = near.tcpa_min != null ? ` · ${Math.round(near.tcpa_min)} min` : '';
+  const reden = near.reden === 'ramkoers' ? 'ramkoers' : 'dichtbij';
+  const staart = alarm.stil_tot ? `  (stil tot ${klokKort(alarm.stil_tot)})`
+    : (!alarm.geluid ? '  (bevestigd)' : '');
+  return {
+    tonen: true, geluid: !!alarm.geluid, schip: near,
+    tekst: `⚠ ${near.name} · ${Number(near.dist_nm).toFixed(2)} NM${tcpa} · ${reden}${staart}`,
+  };
 }
-// Evaluate the whole target list against the settings + alarm state (ack/snooze).
-// Returns the threat list (for the banner/highlighting) and whether to sound.
-export function evaluateAlarms(ships, s, { ackMmsi = new Set(), snoozeUntil = 0, now = 0 } = {}) {
-  if (!s || !s.alarm_enabled) return { threats: [], sound: false, snoozed: false };
-  const threats = [];
-  for (const t of (ships || [])) {
-    const reason = alarmReason(t, s);
-    if (reason) threats.push({ ...t, reason });
+
+/**
+ * Het oor-lampje: luistert er een telefoon, en hoe hard staat hij?
+ *
+ * Rood zodra er niemand luistert terwijl er iets te bewaken valt (alarm aan
+ * of een anker uit). Een telefoon die wel luistert maar zacht staat is oranje:
+ * een alarm op twintig procent is fluisteren.
+ */
+export function wachterTekst(wachters, { alarmAan = true, ankerActief = false } = {}) {
+  const lijst = wachters || [];
+  const oren = lijst.filter((w) => w.vers && w.luistert);
+  const nodig = alarmAan || ankerActief;
+  if (oren.length) {
+    const w = oren[0];
+    const vol = w.volume == null ? null : Math.round(w.volume * 100);
+    if (vol != null && vol < 50) {
+      return { tekst: `oor · ${w.naam} luistert · VOLUME ${vol}%`, klasse: 'let' };
+    }
+    return { tekst: `oor · ${w.naam} luistert${vol != null ? ` · ${vol}%` : ''}`, klasse: 'goed' };
   }
-  const snoozed = now < snoozeUntil;
-  const hasUnacked = threats.some(t => !ackMmsi.has(t.mmsi));
-  return { threats, snoozed, sound: !snoozed && hasUnacked };
+  const bekend = lijst[0];
+  if (bekend) {
+    const wat = bekend.luistert ? 'stil sinds' : 'luistert niet sinds';
+    return { tekst: `oor · ${bekend.naam} ${wat} ${klokKort(bekend.laatst)}`, klasse: nodig ? 'alarm' : 'stil' };
+  }
+  return { tekst: 'geen oor', klasse: nodig ? 'alarm' : 'stil' };
 }
-if (typeof window !== 'undefined') { window.alarmReason = alarmReason; window.evaluateAlarms = evaluateAlarms; }
 
 // De veiligheidsstraal loopt van 0,1 tot 45 NM -- een factor 450. Op een rechte
 // schuif zouden de waarden die er in nauw vaarwater toe doen (0,3 tot 1 NM) in
@@ -640,7 +669,9 @@ let _anker = null;
 let _ankerSpoor = [];
 let _ankerOpen = false;
 let _ankerSpoorTimer = 0;
-let _ankerBeepTimer = 0;
+let _ankerLaatsteMelding = 0;      // wanneer de stem voor het laatst over het anker sprak
+let _ankerAlarmWas = false;        // om "het anker houdt weer" één keer te zeggen
+const ANKER_HERHAAL_MS = 30000;    // een ankeralarm blijft zeuren tot er iemand komt
 
 const klokVan = (ts) => {
   if (ts == null) return '—';
@@ -684,11 +715,17 @@ export function applyAnker(a, doc = document, nuS = Date.now() / 1000) {
     // Alleen aan boord klinkt er iets; thuis is de balk genoeg.
     const geluid = !!t.banner && CFG.mode !== 'cloud';
     banner.classList.toggle('sounding', geluid);
-    if (geluid && !_ankerBeepTimer && typeof setInterval !== 'undefined') {
-      alarmBeep();
-      _ankerBeepTimer = setInterval(alarmBeep, 3000);
-    } else if (!geluid && _ankerBeepTimer) {
-      clearInterval(_ankerBeepTimer); _ankerBeepTimer = 0;
+    if (geluid) {
+      // Dezelfde zinnen als de telefoon (Alarm.swift), elke halve minuut
+      // opnieuw: een krabbend anker is pas voorbij als er iemand aan dek is.
+      if (!_spreekt && Date.now() - _ankerLaatsteMelding > ANKER_HERHAAL_MS) {
+        _ankerLaatsteMelding = Date.now();
+        spreekBestanden(ankerBestanden(a));
+      }
+      _ankerAlarmWas = true;
+    } else if (_ankerAlarmWas) {
+      _ankerAlarmWas = false;
+      if (CFG.mode !== 'cloud' && !_spreekt) spreekBestanden(['anker-houdt.mp3']);
     }
   }
 
@@ -712,6 +749,7 @@ export function applyAnker(a, doc = document, nuS = Date.now() / 1000) {
     set('ankerStraalOut', `${Math.round(a.straal_m)} m`);
   }
   if (_ankerOpen) renderAnkerPlot(doc);
+  renderWachters(doc);
 }
 
 export function ankerOpen(open) {
@@ -751,17 +789,20 @@ function speelBestand(url) {
   });
 }
 
-async function spreekAlarm(schip, eigen) {
-  if (_spreekt) return;
+async function spreekBestanden(bestanden) {
+  if (_spreekt || !bestanden.length) return;
   _spreekt = true;
   try {
-    const bestanden = meldingBestanden(schip, eigen);
     for (const naam of bestanden) await speelBestand(`geluid/${naam}`);
   } catch (e) {
     alarmBeep();
   } finally {
     _spreekt = false;
   }
+}
+
+function spreekAlarm(schip, eigen) {
+  return spreekBestanden(meldingBestanden(schip, eigen));
 }
 
 function alarmBeep() {
@@ -781,7 +822,8 @@ function alarmBeep() {
   } catch (e) { /* audio unavailable */ }
 }
 
-// Filter + slice the AIS list per settings, evaluate alarms, render + sound.
+// De lijst voor het scherm: gefilterd en afgeknipt op "aantal tonen" -- maar
+// een dreiging die daarbuiten valt komt er bovenaan bij, want die is het nieuws.
 function processAis() {
   const s = _settings;
   let list = _lastAis || [];
@@ -793,40 +835,44 @@ function processAis() {
   } else {
     list = list.slice(0, 10);
   }
-  let threatSet = new Set();
-  if (s) {
-    const res = evaluateAlarms(list, s,
-      { ackMmsi: _ackMmsi, snoozeUntil: _snoozeUntil, now: Date.now() });
-    threatSet = new Set(res.threats.map(t => t.mmsi));
-    // drop acks for ships that left the zone, so they re-arm if they return
-    for (const m of [..._ackMmsi]) if (!threatSet.has(m)) _ackMmsi.delete(m);
-    updateAlarmUi(res);
-  }
-  renderAis(list, document, threatSet);
+  const dreigingen = (_alarm && _alarm.dreigingen) || [];
+  const extra = dreigingen.filter(d => !list.some(x => x.mmsi === d.mmsi));
+  list = [...extra, ...list];
+  renderAis(list, document, new Set(dreigingen.map(t => t.mmsi)));
+  updateAlarmUi(_alarm);
   if (_aisMapOpen) renderAisMap();
 }
 
-function updateAlarmUi(res) {
+function updateAlarmUi(alarm) {
   const banner = document.getElementById('alarmBanner');
   if (!banner) return;
-  if (res.threats.length) {
-    const near = res.threats.slice().sort((a, b) => a.dist_nm - b.dist_nm)[0];
-    const tcpa = near.tcpa_min != null ? ` · ${Math.round(near.tcpa_min)} min` : '';
+  const t = alarmTekst(alarm);
+  if (t.tonen) {
     const txt = document.getElementById('alarmText');
-    if (txt) txt.textContent = `⚠ ${near.name} · ${Number(near.dist_nm).toFixed(2)} NM${tcpa}`
-      + (res.snoozed ? '  (gesnoozed)' : '');
+    if (txt) txt.textContent = t.tekst;
     banner.style.display = 'flex';
-    banner.classList.toggle('sounding', res.sound);
+    banner.classList.toggle('sounding', t.geluid);
     // Een gesproken melding duurt zes tot acht seconden; de oude tel van twee
     // seconden zou hem over zichzelf heen laten struikelen.
-    if (res.sound && !_spreekt && Date.now() - _lastBeep > MELDING_PAUZE_MS) {
+    if (t.geluid && CFG.mode !== 'cloud' && !_spreekt && Date.now() - _lastBeep > MELDING_PAUZE_MS) {
       _lastBeep = Date.now();
-      spreekAlarm(near, _self);
+      spreekAlarm(t.schip, _self);
     }
   } else {
     banner.style.display = 'none';
     banner.classList.remove('sounding');
   }
+}
+
+function renderWachters(doc = document) {
+  const chip = doc.getElementById('oorChip');
+  if (!chip) return;
+  const w = wachterTekst(_wachters, {
+    alarmAan: !_settings || _settings.alarm_enabled !== false,
+    ankerActief: !!(_anker && _anker.actief),
+  });
+  chip.textContent = w.tekst;
+  chip.className = `oor-chip ${w.klasse}`;
 }
 
 // Called by the Instellingen sliders: apply live, persist (debounced), side-effects.
@@ -844,11 +890,14 @@ export function setSetting(key, value) {
   }, 400);
   if (key === 'screen_brightness') fetch('/api/screen/brightness/' + value, { method: 'POST' }).catch(() => {});
 }
-export function ackThreat(mmsi) { if (mmsi) { _ackMmsi.add(mmsi); processAis(); } }
+// Bevestigen en snoozen gaan naar de Pi: ze gelden dan ook voor de telefoon.
+const alarmPost = (pad, body) => fetch(`/api/alarm/${pad}`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+}).catch(() => {});
+export function ackThreat(mmsi) { if (mmsi) alarmPost('bevestig', { id: String(mmsi) }); }
 export function snoozeAlarms() {
   const m = (_settings && _settings.alarm_snooze_min) || 10;
-  _snoozeUntil = Date.now() + m * 60000;
-  processAis();
+  alarmPost('stil', { minuten: m });
 }
 function loadSettings() {
   fetch('/api/settings').then(r => r.json()).then(s => {
@@ -869,9 +918,13 @@ function connect() {
     const data = JSON.parse(ev.data);
     if (data.reading) applyReading(data.reading);
     if (data.boat) applyBoat(data.boat);
-    if (data.ais) { _lastAis = data.ais; processAis(); }
+    if (data.instellingen) { _settings = data.instellingen; window.__settings = _settings; }
+    if ('alarm' in data) _alarm = data.alarm;
+    if (data.ais) _lastAis = data.ais;
+    if (data.ais || 'alarm' in data) processAis();
     if (data.total_solar_w != null || data.victron) applyVictron(data.victron, data.total_solar_w);
     if ('anker' in data) applyAnker(data.anker);
+    if (data.wachters) { _wachters = data.wachters; renderWachters(); }
     lastMsg = Date.now();
     markStale(false);                  // data is flowing
   };
@@ -908,7 +961,9 @@ async function cloudTick() {
     const nu = await res.json();
     if (nu.reading) applyReading(nu.reading);
     if (nu.boat) applyBoat(nu.boat);
+    if ('alarm' in nu) _alarm = nu.alarm;
     if (nu.ais) applyAisFromCloud(nu.ais);
+    if (nu.wachters) { _wachters = nu.wachters; renderWachters(); }
     if (nu.victron || nu.total_solar_w != null) {
       applyVictron(nu.victron, nu.total_solar_w);
     }
@@ -926,7 +981,7 @@ function applyAisFromCloud(lijst) {
     lat: s.a ?? s.lat, lon: s.o ?? s.lon,
   }));
   _lastAis = ships;
-  renderAis(ships);
+  processAis();
 }
 
 async function cloudChart() {

@@ -150,7 +150,9 @@
   .icoLabel{ font-size:10px; letter-spacing:.14em; text-transform:uppercase; }
 
   /* ===================== combined boat + solar layout ===================== */
-  .app.combined { grid-template-rows: auto 1.18fr 1fr; gap:14px; }
+  /* Onderaan ruimte voor de twee pillen (oor links, anker rechts), zodat ze
+     niet over de onderste kaarten heen liggen. */
+  .app.combined { grid-template-rows: auto 1.18fr 1fr; gap:14px; padding-bottom:56px; }
   .boat { display:grid; grid-template-columns: 0.82fr 1.22fr 0.82fr 0.92fr; gap:14px; min-height:0; }
 
   /* AIS nearby-ships table */
@@ -350,6 +352,14 @@
     border:1px solid rgba(255,138,142,.55); background:rgba(10,14,22,.92); color:#ffb3b6;
     box-shadow:0 6px 24px -8px rgba(0,0,0,.8);
     font-family:var(--num); font-size:15px; font-variant-numeric:tabular-nums; letter-spacing:.04em; }
+  /* Het oor: luistert de telefoon? Linksonder, altijd in beeld. */
+  .oor-chip { position:fixed; left:16px; bottom:14px; z-index:70; display:inline-flex; align-items:center; gap:8px;
+    padding:9px 16px; border-radius:999px; white-space:nowrap; border:1px solid var(--line2);
+    background:rgba(10,14,22,.92); color:var(--muted); box-shadow:0 6px 24px -8px rgba(0,0,0,.8);
+    font-family:var(--num); font-size:15px; font-variant-numeric:tabular-nums; letter-spacing:.04em; }
+  .oor-chip.goed { color:var(--battery); border-color:rgba(43,213,118,.5); }
+  .oor-chip.let { color:#ffc24b; border-color:rgba(255,194,75,.6); }
+  .oor-chip.alarm { background:rgba(255,93,99,.85); color:#fff; border-color:#fff; animation:alarmflash 1.6s steps(1) infinite; }
   .anker-chip.alarm { background:rgba(255,93,99,.85); color:#fff; border-color:#fff; animation:alarmflash .8s steps(1) infinite; }
   .anker-wrap { flex:1; min-height:0; display:grid; grid-template-columns:minmax(300px,420px) 1fr; gap:14px; padding:14px 16px; }
   .anker-paneel { display:flex; flex-direction:column; gap:12px; background:rgba(255,255,255,.03);
