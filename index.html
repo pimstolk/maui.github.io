@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<link rel="stylesheet" href="volgen.css?v=46ed5fc2" />
-<script>window.MAUI_BOUW='75e8014f9cd7';</script>
+<link rel="stylesheet" href="volgen.css?v=d13b34a0" />
+<script>window.MAUI_BOUW='160f8be32be4';</script>
 </head>
 <body>
 
@@ -104,6 +104,40 @@
           <tbody id="akLog"></tbody>
         </table>
       </details>
+    </section>
+
+    <!-- Live meekijken: alleen als de Pi een Funnel-adres heeft (config.js) én
+         Pim het aan heeft gezet. Zonder geluid; stopt na een kwartier. -->
+    <section class="kijkvak" id="kijkvak" hidden aria-label="Live meekijken">
+      <div class="kijkkop">
+        <span class="t">Live meekijken</span>
+        <span class="kijkstatus" id="kijkStatus">—</span>
+      </div>
+      <div class="kijktegels">
+        <div class="kijktegel">
+          <div class="kijknaam">Kuipcamera · 360°</div>
+          <div class="kijkbeeld" id="kijk_boatcam_stil">
+            <button class="kijkstart" data-bron="boatcam_stil" type="button">Kijk live</button>
+          </div>
+          <div class="ptz" id="ptz_boatcam_stil" hidden>
+            <button class="ptzknop" data-move="up" type="button" aria-label="omhoog">▲</button>
+            <button class="ptzknop" data-move="left" type="button" aria-label="links">◀</button>
+            <button class="ptzknop" data-move="right" type="button" aria-label="rechts">▶</button>
+            <button class="ptzknop" data-move="down" type="button" aria-label="omlaag">▼</button>
+            <button class="ptzknop zoom" data-move="zoomin" type="button" aria-label="inzoomen">＋</button>
+            <button class="ptzknop zoom" data-move="zoomout" type="button" aria-label="uitzoomen">−</button>
+          </div>
+        </div>
+        <div class="kijktegel">
+          <div class="kijknaam">Ring</div>
+          <div class="kijkbeeld" id="kijk_ring_stil">
+            <button class="kijkstart" data-bron="ring_stil" type="button">Kijk live</button>
+          </div>
+        </div>
+      </div>
+      <p class="kijkvoet">Zonder geluid. Een stroom stopt vanzelf na een kwartier; tik dan opnieuw.
+        Elke kijker kost de boot satellietdata, dus kijk even en sluit weer. De Ring loopt op een accu en
+        stopt zelf na een paar minuten.</p>
     </section>
 
     <section class="camera" id="camera" hidden aria-label="Laatste camerabeeld">
@@ -255,6 +289,6 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="config.js"></script>
-<script type="module" src="volgen.js?v=75e8014f"></script>
+<script type="module" src="volgen.js?v=160f8be3"></script>
 </body>
 </html>

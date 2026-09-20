@@ -6,6 +6,7 @@
 
 import { VRAAG, klopt, onthoud, magBinnen } from './poort.js?v=af1c33a3';
 import { haalAnker, ankerSamenvatting, logboek, spoorOpLeeftijd } from './anker.js?v=d565e55f';
+import { bedraadKijk } from './kijk.js?v=07ec1038';
 import { windroosSvg, kompasSvg, windZijde } from './instrumenten.js?v=af7fe36b';
 import {
   haalHistorie, haalNu, haalRoutes, haalSpoor, haalFotos, trackVan, trackStukken,
@@ -681,6 +682,8 @@ function poortAf() {
   // minuten neer, de pagina kijkt elke minuut.
   laadAnker();
   setInterval(laadAnker, 60000);
+  // Live meekijken, als de Pi een Funnel-adres heeft.
+  try { bedraadKijk((window.RENOGY_CONFIG || {}).kijk); } catch (e) { /* zonder kijkvak draait de rest door */ }
   setInterval(() => { if (gekozenT === null) laad(activeUren()); }, 60000);
   setInterval(tekenKop, 20000);
   // Elke vijf minuten kijken of er een nieuwe bouw op de site staat.

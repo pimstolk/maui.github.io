@@ -442,3 +442,54 @@ input[type=range].schuif:focus-visible { outline: 2px solid var(--overprint); ou
   border-radius: 50%; background: rgba(6,17,29,.85); border: 1.5px solid #ff5d63;
   color: #ff8a8e; font-size: 15px;
 }
+
+
+/* ---------- live meekijken --------------------------------------------- */
+.kijkvak {
+  background: var(--zee); border: 1px solid var(--lijn);
+  border-radius: 14px; padding: 16px 18px 14px; margin-top: 14px;
+}
+.kijkvak[hidden] { display: none; }
+.kijkkop { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+.kijkkop .t {
+  font-family: var(--data); font-size: 11px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--inkt-vaag);
+}
+.kijkstatus { margin-left: auto; font-family: var(--data); font-size: 11px; color: var(--inkt-zwak); }
+.kijkstatus.aan { color: #67d6c4; }
+.kijkstatus.vol { color: #ffb547; }
+.kijkstatus.uit, .kijkstatus.weg { color: var(--inkt-vaag); }
+.kijktegels { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.kijknaam { font-family: var(--data); font-size: 12px; color: var(--inkt-zwak); margin-bottom: 6px; }
+.kijkbeeld {
+  position: relative; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden;
+  background: var(--zee-diep); display: grid; place-items: center;
+}
+.kijkvak.dicht .kijkbeeld { opacity: .55; }
+.kijkbeeld video-rtc { display: block; width: 100%; height: 100%; }
+.kijkbeeld video-rtc video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+.kijkstart {
+  padding: 12px 22px; border-radius: 999px; border: 1px solid var(--lijn-sterk);
+  background: rgba(6,17,29,.8); color: var(--inkt); font-family: var(--display);
+  font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.kijkstart:disabled { opacity: .4; cursor: default; }
+.kijkstart[hidden] { display: none; }
+.ptz {
+  display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(2, 44px);
+  gap: 6px; margin-top: 10px; justify-content: center;
+}
+.ptz[hidden] { display: none; }
+.ptzknop {
+  width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--lijn-sterk);
+  background: var(--zee-op); color: var(--inkt); font-size: 16px; cursor: pointer;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.ptzknop:active { background: var(--overprint); color: #fff; }
+.ptzknop[data-move="up"] { grid-column: 2; grid-row: 1; }
+.ptzknop[data-move="left"] { grid-column: 1; grid-row: 2; }
+.ptzknop[data-move="down"] { grid-column: 2; grid-row: 2; }
+.ptzknop[data-move="right"] { grid-column: 3; grid-row: 2; }
+.ptzknop[data-move="zoomin"] { grid-column: 3; grid-row: 1; }
+.ptzknop[data-move="zoomout"] { grid-column: 1; grid-row: 1; }
+.kijkvoet { margin-top: 12px; font-family: var(--data); font-size: 11px; color: var(--inkt-vaag); line-height: 1.5; }
