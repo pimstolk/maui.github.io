@@ -193,8 +193,7 @@
   .aws-big { fill:var(--txt); font-family:var(--num); font-size:52px; font-variant-numeric:tabular-nums; text-anchor:middle; dominant-baseline:middle; }
   .aws-unit { fill:var(--faint); font-size:9px; letter-spacing:.16em; text-anchor:middle; text-transform:uppercase; }
   .awa-lbl { fill:var(--muted); font-family:var(--num); font-size:18px; text-anchor:middle; }
-  #compassCard, #windArrow { transform-box: view-box; transform-origin: 150px 150px;
-    transition: transform .6s cubic-bezier(.22,1,.36,1); }
+  #compassCard, #windArrow { transform-box: view-box; transform-origin: 150px 150px; }
 
   /* bigger centred rose, floating over the wind chart behind it */
   .wind-area { flex:1; min-height:0; position:relative; padding:2px 10px 6px; }
