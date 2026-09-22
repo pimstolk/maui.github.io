@@ -27,7 +27,7 @@ const NAMEN = { boatcam_stil: 'Kuipcamera · 360°', ring_stil: 'Ring' };
 
 /** Wat het statusbestand betekent, in woorden. Puur, voor node. */
 export function kijkStatusTekst(s) {
-  if (!s) return { aan: false, tekst: 'de boot is niet bereikbaar', klasse: 'weg' };
+  if (!s) return { aan: false, offline: true, tekst: 'de boot is nu offline', klasse: 'weg' };
   if (!s.aan) return { aan: false, tekst: 'de camera\'s staan uit', klasse: 'uit' };
   const n = s.kijkers || 0;
   const vol = n >= (s.max_kijkers || 4);
@@ -120,15 +120,10 @@ export function bedraadKijk(basis, doc = document, fetchFn = fetch) {
     b.addEventListener('pointercancel', los);
   });
 
-  let ooitBereikt = false;
+  vak.hidden = false;   // altijd zichtbaar; de status zegt of het nu kan
   const ververs = async () => {
     const s = await haalKijkStatus(basis, fetchFn);
     const t = kijkStatusTekst(s);
-    // Het vak verschijnt pas als de boot één keer geantwoord heeft: zonder
-    // Funnel hoort er niets te staan, geen eeuwig "niet bereikbaar".
-    if (s) ooitBereikt = true;
-    if (!ooitBereikt) return;
-    vak.hidden = false;
     if (status) { status.textContent = t.tekst; status.className = `kijkstatus ${t.klasse}`; }
     vak.classList.toggle('dicht', !t.aan);
     if (!t.aan) Object.keys(lopend).forEach(stop);

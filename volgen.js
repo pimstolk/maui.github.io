@@ -6,7 +6,7 @@
 
 import { VRAAG, klopt, onthoud, magBinnen } from './poort.js?v=af1c33a3';
 import { haalAnker, ankerSamenvatting, logboek, spoorOpLeeftijd } from './anker.js?v=d565e55f';
-import { bedraadKijk } from './kijk.js?v=07ec1038';
+import { bedraadKijk } from './kijk.js?v=3a49abfa';
 import { windroosSvg, kompasSvg, windZijde } from './instrumenten.js?v=af7fe36b';
 import {
   haalHistorie, haalNu, haalRoutes, haalSpoor, haalFotos, trackVan, trackStukken,
