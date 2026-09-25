@@ -475,6 +475,19 @@ export function aioChartSeries(pvItems, altItems, bucket = 300) {
 }
 
 // ---------- browser-only wiring (guarded so node import is side-effect free) ----------
+// De processortemperatuur, klein in de kop. Groen normaal, oranje boven de 70,
+// rood boven de 80 -- dan zit de Pi tegen zijn grens (ventilator uitgevallen?).
+function applyPiTemp(c, doc = document) {
+  const vak = doc.getElementById('piTemp'), w = doc.getElementById('piTempW');
+  if (!vak || !w) return;
+  if (c == null) { vak.hidden = true; return; }
+  vak.hidden = false;
+  w.textContent = `${Math.round(c)}\u00b0`;
+  vak.classList.toggle('warm', c >= 70 && c < 80);
+  vak.classList.toggle('heet', c >= 80);
+}
+if (typeof window !== 'undefined') window.applyPiTemp = applyPiTemp;
+
 function markStale(stale) {
   const banner = document.getElementById('staleBanner');
   if (banner) banner.style.display = stale ? 'flex' : 'none';
@@ -925,6 +938,7 @@ function connect() {
     if (data.total_solar_w != null || data.victron) applyVictron(data.victron, data.total_solar_w);
     if ('anker' in data) applyAnker(data.anker);
     if (data.wachters) { _wachters = data.wachters; renderWachters(); }
+    if ('pi_temp' in data) applyPiTemp(data.pi_temp);
     lastMsg = Date.now();
     markStale(false);                  // data is flowing
   };
@@ -968,6 +982,7 @@ async function cloudTick() {
       applyVictron(nu.victron, nu.total_solar_w);
     }
     if ('anker' in nu) applyAnker(nu.anker);
+    if ('pi_temp' in nu) applyPiTemp(nu.pi_temp);
     const ageS = nu.t ? (Date.now() / 1000 - nu.t) : Infinity;
     markStale(ageS > 300);
   } catch (e) { markStale(true); }

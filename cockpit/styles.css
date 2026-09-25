@@ -76,6 +76,15 @@
   .stage span { color:var(--muted); font-size:11px; letter-spacing:.15em; text-transform:uppercase; }
 
   .status { display:flex; align-items:center; gap:22px; }
+  /* De processortemperatuur, klein: groen bij normaal, oranje warm, rood heet.
+     Zonder ventilator zat de Pi op 84 C; met ventilator rond 45 C. */
+  .pitemp { font-family:var(--num); font-size:13px; letter-spacing:.04em; color:var(--muted);
+    display:flex; align-items:center; gap:5px; }
+  .pitemp::before { content:""; width:8px; height:8px; border-radius:2px; background:currentColor;
+    -webkit-mask:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14 14.76V5a2 2 0 1 0-4 0v9.76a4 4 0 1 0 4 0z"/></svg>') center/contain no-repeat;
+            mask:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14 14.76V5a2 2 0 1 0-4 0v9.76a4 4 0 1 0 4 0z"/></svg>') center/contain no-repeat; }
+  .pitemp.warm { color:var(--solar); }
+  .pitemp.heet { color:var(--danger); }
   .live { display:flex; align-items:center; gap:9px; font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
   .live .d { width:8px;height:8px;border-radius:50%; background:var(--battery); box-shadow:0 0 10px 1px var(--battery-glow); }
   .clock { font-family:var(--num); font-size:22px; letter-spacing:.06em; font-variant-numeric:tabular-nums; }
